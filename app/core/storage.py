@@ -10,12 +10,13 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from typing import Annotated, Any
+from typing import Annotated, Any, cast
 
 import boto3
 from botocore.client import Config
 from botocore.exceptions import BotoCoreError, ClientError
 from fastapi import Depends
+from urllib3.exceptions import HTTPError
 
 from app.core.decorators import log_errors
 from app.core.exceptions import NotFoundError, StorageError
@@ -62,7 +63,7 @@ class BlobStorage:
                 raise NotFoundError(f"Object {kwargs.get('Key', args)} not found") from exc
             await emit_blob_metric("StorageErrorCount", Operation=operation)
             raise StorageError(f"S3 {operation} failed: {code or exc}") from exc
-        except BotoCoreError as exc:
+        except (BotoCoreError, HTTPError) as exc:
             await emit_blob_metric("StorageErrorCount", Operation=operation)
             raise StorageError(f"S3 {operation} failed: {exc}") from exc
 
@@ -77,9 +78,11 @@ class BlobStorage:
         )
 
     async def get_object(self, key: str) -> bytes:
-        result = await self._run("get_object", self._client.get_object, Bucket=self.bucket, Key=key)
-        data: bytes = result["Body"].read()
-        return data
+        def _download() -> bytes:
+            result = self._client.get_object(Bucket=self.bucket, Key=key)
+            return cast(bytes, result["Body"].read())
+
+        return cast(bytes, await self._run("get_object", _download))
 
     async def head_object(self, key: str) -> HeadObject:
         result = await self._run(

@@ -1,7 +1,8 @@
 import boto3
 import pytest
-from botocore.exceptions import ClientError
+from botocore.exceptions import ClientError, ReadTimeoutError
 from moto import mock_aws
+from urllib3.exceptions import HTTPError
 
 from app.core import storage as storage_module
 from app.core.exceptions import NotFoundError, StorageError
@@ -88,3 +89,35 @@ async def test_client_error_becomes_storage_error_and_emits_metric(aws_credentia
             await store.put_object("k", b"x", "text/plain")
 
         assert calls == [{"name": "StorageErrorCount", "dims": {"Operation": "put_object"}}]
+
+
+@pytest.mark.parametrize(
+    "read_error",
+    [
+        ReadTimeoutError(endpoint_url="http://s3.local", error="boom"),
+        HTTPError("connection broken"),
+    ],
+)
+async def test_download_read_error_becomes_storage_error_and_emits_metric(
+    aws_credentials, monkeypatch, read_error
+):
+    with mock_aws():
+        store = BlobStorage(bucket=BUCKET)
+
+        class BrokenBody:
+            def read(self) -> bytes:
+                raise read_error
+
+        monkeypatch.setattr(store._client, "get_object", lambda **kwargs: {"Body": BrokenBody()})
+
+        calls: list[dict[str, object]] = []
+
+        async def _capture(name, value=1, unit="Count", *, namespace=None, **dims):
+            calls.append({"name": name, "dims": dims})
+
+        monkeypatch.setattr(storage_module, "emit_blob_metric", _capture)
+
+        with pytest.raises(StorageError):
+            await store.get_object("k")
+
+        assert calls == [{"name": "StorageErrorCount", "dims": {"Operation": "get_object"}}]
