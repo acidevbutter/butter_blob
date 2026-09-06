@@ -69,7 +69,7 @@ Ordered by prompt. Tick a box when it's done **and** its acceptance passes
 - [x] soft + hard delete; best-effort S3 delete
 - [ ] **Acceptance:** ampliar `test_blobs_manage` para delete hard e asserções de métricas.
 
-## 08 — Temporary files & purge-expired — Status: ⬜ not started
+## 08 — Temporary files & purge-expired — Status: ✅ done
 - [ ] `_resolve_expiry` shared by both upload paths; `tmp/` key prefix
 - [ ] 410 on every expired read path
 - [ ] `app/maintenance/{router,service,dependencies}.py` — `POST /internal/v1/maintenance/purge-expired`

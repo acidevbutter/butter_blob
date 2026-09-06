@@ -3,7 +3,7 @@ import uuid
 from datetime import UTC, datetime
 from typing import Any
 
-from sqlalchemy import JSON, BigInteger, DateTime, ForeignKey, String, UniqueConstraint, func
+from sqlalchemy import JSON, BigInteger, DateTime, String, UniqueConstraint, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base
@@ -67,7 +67,7 @@ class BlobEvent(Base):
     __tablename__ = "blob_events"
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
-    blob_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("blobs.id"), index=True)
+    blob_id: Mapped[uuid.UUID] = mapped_column(index=True)
     namespace: Mapped[str] = mapped_column(String(100), index=True)
     action: Mapped[BlobEventAction] = mapped_column(String(30))
     detail: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
