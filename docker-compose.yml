@@ -1,0 +1,41 @@
+services:
+  api:
+    build: .
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    ports:
+      - "8003:8000"
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: postgresql+asyncpg://blob:blob@shared-postgres:5432/blob
+      S3_ENDPOINT_URL: http://minio:9000
+      S3_FORCE_PATH_STYLE: "true"
+      # MinIO doesn't verify these against IAM, but boto3 refuses to sign a
+      # request with no credentials at all. On real AWS the ECS task role
+      # supplies credentials automatically and these are never set.
+      AWS_ACCESS_KEY_ID: minioadmin
+      AWS_SECRET_ACCESS_KEY: minioadmin
+    volumes:
+      - ./app:/srv/app
+      - ./alembic:/srv/alembic
+    networks:
+      default:
+      devbutter_shared:
+        aliases:
+          - blob-api
+    develop:
+      watch:
+        - path: ./app
+          action: sync+restart
+          target: /srv/app
+        - path: ./alembic
+          action: sync+restart
+          target: /srv/alembic
+
+networks:
+  default:
+  # shared-postgres and minio live in the infra/ compose stack -- bring that up
+  # first: `docker network create devbutter_shared` then
+  # `docker compose -f infra/docker-compose.yml up -d shared-postgres minio createbuckets`.
+  devbutter_shared:
+    external: true
