@@ -46,6 +46,7 @@ async def upload_blob(
     filename: Annotated[str | None, Form()] = None,
     metadata: Annotated[str | None, Form()] = None,
     ttl_seconds: Annotated[int | None, Form()] = None,
+    temporary: Annotated[bool, Form()] = False,
 ) -> BlobRead:
     blob = await service.upload_proxy(
         namespace,
@@ -54,6 +55,7 @@ async def upload_blob(
         filename=filename,
         metadata=_parse_metadata(metadata),
         ttl_seconds=ttl_seconds,
+        temporary=temporary,
     )
     return service.as_read(blob)
 

@@ -104,10 +104,12 @@ class BlobService:
             raise ValidationFailedError("Temporary TTL must be greater than zero")
 
     @staticmethod
-    def _expires_at(ttl_seconds: int | None) -> datetime | None:
-        if ttl_seconds is None:
-            return None
-        return datetime.now(UTC) + timedelta(seconds=ttl_seconds)
+    def _resolve_expiry(ttl_seconds: int | None, temporary: bool) -> datetime | None:
+        if ttl_seconds is not None:
+            return datetime.now(UTC) + timedelta(seconds=ttl_seconds)
+        if temporary:
+            return datetime.now(UTC) + timedelta(seconds=settings.default_temporary_ttl_seconds)
+        return None
 
     def as_read(self, blob: Blob) -> BlobRead:
         response = BlobRead.model_validate(blob)
@@ -286,6 +288,7 @@ class BlobService:
         filename: str | None,
         metadata: dict[str, Any],
         ttl_seconds: int | None,
+        temporary: bool = False,
     ) -> Blob:
         started = time.perf_counter()
         name = self._sanitize_filename(filename or upload.filename)
@@ -314,7 +317,7 @@ class BlobService:
             if content_type == "image/webp":
                 name = f"{os.path.splitext(name)[0]}.webp"
 
-        expires_at = self._expires_at(ttl_seconds)
+        expires_at = self._resolve_expiry(ttl_seconds, temporary)
         blob = Blob(
             id=uuid4(),
             namespace=namespace,
@@ -371,7 +374,7 @@ class BlobService:
             size=payload.byte_size,
             ttl_seconds=payload.ttl_seconds,
         )
-        expires_at = self._expires_at(payload.ttl_seconds)
+        expires_at = self._resolve_expiry(payload.ttl_seconds, payload.temporary)
         blob = Blob(
             id=uuid4(),
             namespace=namespace,

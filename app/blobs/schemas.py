@@ -43,6 +43,7 @@ class PresignRequest(BaseModel):
     visibility: Visibility = Visibility.PRIVATE
     metadata: dict[str, Any] = Field(default_factory=dict)
     ttl_seconds: int | None = None
+    temporary: bool = False
 
 
 class PresignResponse(BaseModel):

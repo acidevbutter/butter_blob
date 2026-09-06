@@ -111,6 +111,21 @@ async def test_complete_rejects_missing_presigned_object(client, internal_header
     assert response.status_code == 409
 
 
+async def test_temporary_upload_uses_default_ttl_and_tmp_key(
+    client, internal_headers, blob_storage
+):
+    response = await client.post(
+        "/internal/v1/blobs",
+        headers=internal_headers,
+        data={"temporary": "true"},
+        files={"file": ("temporary.txt", b"hello", "text/plain")},
+    )
+    assert response.status_code == 201
+    assert response.json()["is_temporary"] is True
+    assert response.json()["expires_at"] is not None
+    assert next(iter(blob_storage.objects)).startswith("tmp/test-app/")
+
+
 async def test_upload_compresses_and_resizes_jpeg(client, admin_headers, internal_headers):
     created = await client.post(
         "/admin/v1/namespaces",
