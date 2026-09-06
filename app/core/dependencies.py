@@ -17,6 +17,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.exceptions import NotFoundError, ValidationFailedError
 from app.core.observability import emit_blob_metric
 from app.db.session import get_db_session
+from app.namespaces.repository import NamespaceRepository
+from app.namespaces.service import NamespaceService
 from app.settings.config import settings
 
 DbSession = Annotated[AsyncSession, Depends(get_db_session)]
@@ -54,21 +56,22 @@ def normalize_namespace(raw: str) -> str:
 
 
 async def get_caller_namespace(
+    db: DbSession,
     x_blob_namespace: Annotated[str | None, Header()] = None,
 ) -> str:
     """Identity of the API calling /internal/v1/*. Every blob is bound to this
     value and cross-namespace access 404s.
 
-    Prompt 04 replaces the body with a call to NamespaceService.resolve_caller
-    (which also upserts the ``namespaces`` row); until then it just normalizes
-    and returns the header.
+    A namespace is registered on first use, so every internal caller has a row
+    that an administrator can later configure.
     """
     if x_blob_namespace is None or not x_blob_namespace.strip():
         raise ValidationFailedError("Missing X-Blob-Namespace header")
     namespace = normalize_namespace(x_blob_namespace)
     if not namespace:
         raise ValidationFailedError("X-Blob-Namespace is empty after normalization")
-    return namespace
+    resolved = await NamespaceService(NamespaceRepository(db)).resolve_caller(namespace)
+    return resolved.slug
 
 
 CallerNamespace = Annotated[str, Depends(get_caller_namespace)]

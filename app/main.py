@@ -2,10 +2,13 @@ from fastapi import FastAPI, HTTPException
 from fastapi.responses import RedirectResponse
 from sqlalchemy import text
 
+from app.admin.router import router as admin_router
+from app.blobs.router import router as blobs_router
 from app.core.dependencies import DbSession
 from app.core.exceptions import register_exception_handlers
 from app.core.metrics import configure_metrics, emit_metrics
 from app.core.storage import BlobStorageDep
+from app.namespaces.router import router as namespaces_router
 from app.settings.config import settings
 from app.settings.logging_config import setup_logging
 from app.settings.middleware import register_middleware
@@ -20,8 +23,9 @@ app = FastAPI(
 register_middleware(app)
 register_exception_handlers(app)
 
-# Domain routers (blobs, namespaces, admin, maintenance, public) are wired in by
-# their implementation prompts (04+).
+app.include_router(namespaces_router)
+app.include_router(admin_router)
+app.include_router(blobs_router)
 
 
 @app.get("/health", tags=["meta"])
