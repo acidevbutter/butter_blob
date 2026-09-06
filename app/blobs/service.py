@@ -28,6 +28,7 @@ from app.core.exceptions import (
     UnsupportedMediaTypeError,
     ValidationFailedError,
 )
+from app.core.jobs import enqueue
 from app.core.observability import emit_blob_metric
 from app.core.storage import BlobStorage
 from app.namespaces.models import Namespace
@@ -110,6 +111,30 @@ class BlobService:
         if temporary:
             return datetime.now(UTC) + timedelta(seconds=settings.default_temporary_ttl_seconds)
         return None
+
+    @staticmethod
+    def _job_kinds(blob: Blob) -> list[str]:
+        """Return the enabled post-processing steps for a stored blob."""
+        kinds: list[str] = []
+        if settings.clamav_host:
+            kinds.append("virus_scan")
+        if blob.content_type.startswith("image/") and settings.thumbnail_widths:
+            kinds.append("image_thumbnail")
+        if blob.content_type.startswith("video/") and settings.enable_video_transcode:
+            kinds.append("video_transcode")
+        return kinds
+
+    async def _enqueue_processing(self, blob: Blob) -> Blob:
+        kinds = self._job_kinds(blob)
+        if not kinds:
+            return blob
+        blob.status = BlobStatus.PROCESSING
+        blob = await self.repo.update(blob)
+        await self.repo.add_event(
+            blob.id, blob.namespace, BlobEventAction.PROCESSING, {"kinds": kinds}
+        )
+        await enqueue({"blob_id": str(blob.id), "namespace": blob.namespace, "kinds": kinds})
+        return blob
 
     def as_read(self, blob: Blob) -> BlobRead:
         response = BlobRead.model_validate(blob)
@@ -359,7 +384,7 @@ class BlobService:
             "Milliseconds",
             namespace=namespace,
         )
-        return blob
+        return await self._enqueue_processing(blob)
 
     async def create_presign(
         self, namespace: str, payload: PresignRequest
@@ -482,4 +507,4 @@ class BlobService:
         )
         if original_size is not None:
             await self._emit_compression(namespace, original_size, byte_size)
-        return blob
+        return await self._enqueue_processing(blob)

@@ -4,10 +4,12 @@ import uuid
 
 from fastapi import FastAPI
 from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
+from starlette.middleware.sessions import SessionMiddleware
 from starlette.requests import Request
 from starlette.responses import Response
 
 from app.core.metrics import emit_metrics, route_template, status_class
+from app.settings.config import settings
 
 logger = logging.getLogger("app.request")
 
@@ -58,3 +60,9 @@ class RequestContextMiddleware(BaseHTTPMiddleware):
 
 def register_middleware(app: FastAPI) -> None:
     app.add_middleware(RequestContextMiddleware)
+    app.add_middleware(
+        SessionMiddleware,
+        secret_key=settings.session_secret,
+        session_cookie=settings.session_cookie_name,
+        https_only=settings.environment in {"staging", "preprod", "production"},
+    )

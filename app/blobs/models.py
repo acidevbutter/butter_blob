@@ -16,6 +16,7 @@ class Visibility(str, enum.Enum):
 
 class BlobStatus(str, enum.Enum):
     PENDING = "pending"
+    PROCESSING = "processing"
     STORED = "stored"
     DELETED = "deleted"
 
@@ -29,6 +30,9 @@ class BlobEventAction(str, enum.Enum):
     DOWNLOADED = "downloaded"
     DELETED = "deleted"
     EXPIRED = "expired"
+    PROCESSING = "processing"
+    PROCESSED = "processed"
+    QUARANTINED = "quarantined"
 
 
 class Blob(Base):

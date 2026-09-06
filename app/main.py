@@ -3,6 +3,8 @@ from fastapi.responses import RedirectResponse
 from sqlalchemy import text
 
 from app.admin.router import router as admin_router
+from app.adminui.router import router as adminui_router
+from app.api_keys.router import router as api_keys_router
 from app.blobs.router import router as blobs_router
 from app.core.dependencies import DbSession
 from app.core.exceptions import register_exception_handlers
@@ -10,6 +12,7 @@ from app.core.metrics import configure_metrics, emit_metrics
 from app.core.storage import BlobStorageDep
 from app.maintenance.router import router as maintenance_router
 from app.namespaces.router import router as namespaces_router
+from app.public.router import router as public_router
 from app.settings.config import settings
 from app.settings.logging_config import setup_logging
 from app.settings.middleware import register_middleware
@@ -26,8 +29,11 @@ register_exception_handlers(app)
 
 app.include_router(namespaces_router)
 app.include_router(admin_router)
+app.include_router(adminui_router)
+app.include_router(api_keys_router)
 app.include_router(blobs_router)
 app.include_router(maintenance_router)
+app.include_router(public_router)
 
 
 @app.get("/health", tags=["meta"])

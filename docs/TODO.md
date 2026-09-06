@@ -76,11 +76,11 @@ Ordered by prompt. Tick a box when it's done **and** its acceptance passes
 - [ ] `blob_events` retained after hard-delete (drop/relax the FK) + migration
 - [ ] **Acceptance:** `test_temporary` + `test_purge` (ttl set, over-cap 422, expired 410, purge counts, idempotent, namespace filter, metrics)
 
-## 09 — Open public routes — Status: ⬜ not started
-- [ ] `app/public/{router,schemas,service,dependencies}.py` (no auth)
-- [ ] `GET /v1/public/{ns}/{slug}` → 302; `/meta` → JSON
-- [ ] `PublicBlobServed` / `PublicBlobMiss` metrics
-- [ ] **Acceptance:** `test_public` (302 to fake URL, private 404, unknown 404, expired 410/gone, `/meta` shape, no-auth)
+## 09 — Open public routes — Status: ✅ done
+- [x] `app/public/{router,schemas,service,dependencies}.py` (no auth)
+- [x] `GET /v1/public/{ns}/{slug}` → 302; `/meta` → JSON
+- [x] `PublicBlobServed` / `PublicBlobMiss` metrics
+- [x] **Acceptance:** `test_public` (302 to fake URL, private 404, unknown 404, expired 410/gone, `/meta` shape, no-auth)
 
 ## 10 — Infra wiring (`infra/`) — Status: ⏳ pending integrated smoke
 - [x] `blob` DB in `postgres/init/001-create-databases.sh` + `infra/.env(.example)`
@@ -97,19 +97,19 @@ Ordered by prompt. Tick a box when it's done **and** its acceptance passes
 
 ---
 
-## 12 — Per-namespace DB-backed bearer API keys — Status: ⬜ not started · Codex
-- [ ] `app/api_keys/*` (hashed `bbk_` keys, mint/revoke, `CurrentApiKey`)
-- [ ] admin key-management routes under `/admin/v1/namespaces/{slug}/keys`
-- [ ] `CallerNamespace` resolution: bearer key → header fallback (`allow_header_namespace`)
-- [ ] migration + spec/`.env` updates
-- [ ] **Acceptance:** `test_api_keys` (mint/auth/revoke, bearer identity, header fallback toggle, admin gate)
+## 12 — Per-namespace DB-backed bearer API keys — Status: ✅ done · Codex
+- [x] `app/api_keys/*` (hashed `bbk_` keys, mint/revoke, `CurrentApiKey`)
+- [x] admin key-management routes under `/admin/v1/namespaces/{slug}/keys`
+- [x] `CallerNamespace` resolution: bearer key → header fallback (`allow_header_namespace`)
+- [x] migration + spec/`.env` updates
+- [x] **Acceptance:** `test_api_keys` (mint/auth/revoke, bearer identity, header fallback toggle, admin gate)
 
-## 13 — Async post-processing worker — Status: ⬜ not started · Codex
-- [ ] `app/worker/*` + `app/core/jobs.py` (enqueue on `stored`)
-- [ ] handlers: `virus_scan` (clamd), `image_thumbnail` (Pillow sidecars), `video_transcode` (stub)
-- [ ] `status=processing`, `blob_events` `processing`/`processed`/`quarantined` + migration
-- [ ] `worker` + `elasticmq` compose services
-- [ ] **Acceptance:** `test_worker` (enqueue, thumbnail sidecars, quarantine, retry-on-failure, no-op when unconfigured)
+## 13 — Async post-processing worker — Status: ✅ done · Codex
+- [x] `app/worker/*` + `app/core/jobs.py` (enqueue on `stored`)
+- [x] handlers: `virus_scan` (clamd), `image_thumbnail` (Pillow sidecars), `video_transcode` (stub)
+- [x] `status=processing`, `blob_events` `processing`/`processed`/`quarantined` + migration
+- [x] `worker` + `elasticmq` compose services
+- [x] **Acceptance:** `test_worker` (enqueue, thumbnail sidecars, quarantine, retry-on-failure, no-op when unconfigured)
 
 ## 14 — `devbutter_backend` client — Status: ⬜ not started · Codex · edits `../devbutter_backend`
 - [ ] `app/core/clients/butter_blob_client.py` (mirror `butter_mind_client`)
@@ -122,8 +122,8 @@ Ordered by prompt. Tick a box when it's done **and** its acceptance passes
 - [ ] `app/core/cdn.py::invalidate` on delete / visibility change / replace
 - [ ] **Acceptance:** `terraform plan` shape; app emits CDN URLs + correct `Cache-Control`; invalidate called
 
-## 16 — HTML admin dashboard — Status: ⬜ not started · Codex
-- [ ] `SessionMiddleware` + `admin_users` (bcrypt) + `SessionRequiredError`
-- [ ] `app/adminui/*` — login, namespace list, limits form, blob browser + events
-- [ ] migration; JSON `/admin/v1/*` unchanged
-- [ ] **Acceptance:** `test_adminui` (login gate 303, limits form ↔ JSON API, blob table/detail/soft-delete)
+## 16 — HTML admin dashboard — Status: ✅ done · Codex
+- [x] `SessionMiddleware` + `admin_users` (bcrypt) + `SessionRequiredError`
+- [x] `app/adminui/*` — login, namespace list, limits form, blob browser + events
+- [x] migration; JSON `/admin/v1/*` unchanged
+- [x] **Acceptance:** `test_adminui` (login gate 303, limits form ↔ JSON API, blob table/detail/soft-delete)

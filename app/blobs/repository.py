@@ -10,6 +10,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.blobs.models import Blob, BlobEvent, BlobEventAction, BlobStatus, Visibility
+from app.core.dependencies import get_current_api_key_id
 from app.core.exceptions import ConflictError
 
 
@@ -76,6 +77,21 @@ class BlobRepository:
         result = await self.session.execute(query.order_by(Blob.created_at.desc()).limit(limit))
         return list(result.scalars().all())
 
+    async def list_all(
+        self,
+        *,
+        visibility: Visibility | None = None,
+        status: BlobStatus | None = None,
+        limit: int = 100,
+    ) -> builtins.list[Blob]:
+        query = select(Blob)
+        if visibility is not None:
+            query = query.where(Blob.visibility == visibility)
+        if status is not None:
+            query = query.where(Blob.status == status)
+        result = await self.session.execute(query.order_by(Blob.created_at.desc()).limit(limit))
+        return list(result.scalars().all())
+
     async def update(self, blob: Blob) -> Blob:
         self.session.add(blob)
         await self._commit_or_raise_conflict("Blob namespace/key or public slug already exists")
@@ -98,7 +114,11 @@ class BlobRepository:
         action: BlobEventAction,
         detail: dict[str, Any] | None = None,
     ) -> BlobEvent:
-        event = BlobEvent(blob_id=blob_id, namespace=namespace, action=action, detail=detail or {})
+        event_detail = dict(detail or {})
+        api_key_id = get_current_api_key_id()
+        if api_key_id is not None:
+            event_detail["api_key_id"] = str(api_key_id)
+        event = BlobEvent(blob_id=blob_id, namespace=namespace, action=action, detail=event_detail)
         self.session.add(event)
         await self.session.commit()
         await self.session.refresh(event)

@@ -20,14 +20,14 @@ Rules:
 | 06 | [blobs-upload](06-blobs-upload.md) | ⬜ | — |
 | 07 | [blobs-manage](07-blobs-manage.md) | ⬜ | — |
 | 08 | [temporary-purge](08-temporary-purge.md) | ⬜ | — |
-| 09 | [public-routes](09-public-routes.md) | ⬜ | — |
+| 09 | [public-routes](09-public-routes.md) | ✅ done | — |
 | 10 | [infra](10-infra.md) | ⬜ | — |
 | 11 | [docs-smoke](11-docs-smoke.md) | ⬜ | — |
-| 12 | [namespace-api-keys](12-namespace-api-keys.md) | ⬜ | Codex (phase 2) |
-| 13 | [postprocessing-worker](13-postprocessing-worker.md) | ⬜ | Codex (phase 2) |
+| 12 | [namespace-api-keys](12-namespace-api-keys.md) | ✅ done | Codex (phase 2) |
+| 13 | [postprocessing-worker](13-postprocessing-worker.md) | ✅ | Codex (phase 2) |
 | 14 | [devbutter-backend-client](14-devbutter-backend-client.md) | ⬜ | Codex (phase 2) |
 | 15 | [public-cdn](15-public-cdn.md) | ⬜ | Codex (phase 2) |
-| 16 | [html-admin-dashboard](16-html-admin-dashboard.md) | ⬜ | Codex (phase 2) |
+| 16 | [html-admin-dashboard](16-html-admin-dashboard.md) | ✅ done | Codex (phase 2) |
 
 Phase 1 (00–11) is the working service. Phase 2 (12–16) is the previously
 "out of scope" work, written to be run by Codex.

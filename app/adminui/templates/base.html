@@ -1,0 +1,4 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>{% block title %}Butter Blob{% endblock %}</title>
+<style>body{font:14px system-ui;max-width:1100px;margin:auto;padding:2rem;color:#18212f}nav{display:flex;gap:1rem;align-items:center;border-bottom:1px solid #ddd;padding-bottom:1rem}a{color:#1769aa}table{border-collapse:collapse;width:100%}th,td{padding:.55rem;border-bottom:1px solid #ddd;text-align:left}.card{border:1px solid #ddd;padding:1rem;margin:1rem 0}.bar{height:.6rem;background:#e5e7eb}.bar i{display:block;height:100%;background:#1769aa}input,select{width:100%;padding:.45rem;margin:.2rem 0 .8rem}button{padding:.5rem .75rem}.error{color:#b42318}</style></head>
+<body><nav><a href="/admin">Butter Blob admin</a>{% if admin_user %}<span>{{ admin_user.email }}</span><form action="/admin/logout" method="post"><button>Log out</button></form>{% endif %}</nav><main>{% block content %}{% endblock %}</main></body></html>

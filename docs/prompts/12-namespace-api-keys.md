@@ -1,6 +1,6 @@
 # Prompt 12 — Per-namespace DB-backed bearer API keys (relay-style)
 
-**Status:** ⬜ not started · **Runner:** Codex · **Phase:** 2.
+**Status:** ✅ done · **Runner:** Codex · **Phase:** 2.
 
 ## Goal
 Give each namespace its own revocable bearer keys, so callers stop sharing one
