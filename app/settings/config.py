@@ -29,6 +29,11 @@ class Settings(BaseSettings):
     s3_force_path_style: bool = True
     s3_presign_expires_seconds: int = 900
 
+    # Public permanent blobs can be served by CloudFront while temporary blobs
+    # always retain short-lived presigned S3 URLs.
+    public_cdn_base_url: str = ""
+    cloudfront_distribution_id: str = ""
+
     # Async post-processing. Leave blob_jobs_queue_url empty to disable workers
     # in an environment; the API then keeps uploads in the stored state.
     blob_jobs_queue_url: str = ""

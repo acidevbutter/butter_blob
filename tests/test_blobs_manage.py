@@ -69,3 +69,28 @@ async def test_expired_blob_returns_gone_and_soft_delete_hides_blob(
     assert not blob_storage.objects
     missing = await client.get(f"/internal/v1/blobs/{blob_id}", headers=internal_headers)
     assert missing.status_code == 404
+
+
+async def test_public_delete_and_visibility_private_invalidate_cdn(
+    client, internal_headers, monkeypatch
+):
+    invalidated: list[list[str]] = []
+
+    async def fake_invalidate(paths: list[str]) -> None:
+        invalidated.append(paths)
+
+    monkeypatch.setattr("app.blobs.service.invalidate", fake_invalidate)
+    blob = await _upload(client, internal_headers)
+    blob_id = str(blob["id"])
+    published = await client.patch(
+        f"/internal/v1/blobs/{blob_id}", headers=internal_headers, json={"visibility": "public"}
+    )
+    assert published.status_code == 200
+    private = await client.patch(
+        f"/internal/v1/blobs/{blob_id}", headers=internal_headers, json={"visibility": "private"}
+    )
+    assert private.status_code == 200
+    deleted = await client.delete(f"/internal/v1/blobs/{blob_id}", headers=internal_headers)
+    assert deleted.status_code == 204
+    key = f"blobs/{internal_headers['X-Blob-Namespace']}/{blob_id}/report.txt"
+    assert invalidated == [[key], [key]]

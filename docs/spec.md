@@ -444,8 +444,33 @@ No auth.
 
 | Method | Path | Success | Errors |
 |---|---|---|---|
-| GET | `/v1/public/{namespace}/{public_slug}` | `302` → presigned GET URL. query: `disposition` (`inline`\|`attachment`). Emits `PublicBlobServed`. | `404` (`PublicBlobMiss` — unknown, not public, or `status != stored`), `410` (expired) |
-| GET | `/v1/public/{namespace}/{public_slug}/meta` | `200 {"filename","content_type","byte_size","created_at","expires_at"}` | `404`, `410` |
+| GET | `/v1/public/{namespace}/{public_slug}` | `302` → object URL (see CDN note). query: `disposition` (`inline`\|`attachment`). Emits `PublicBlobServed`. `Cache-Control: public, max-age=86400` for permanent public blobs, `no-store` for temporary. | `404` (`PublicBlobMiss` — unknown, not public, or `status != stored`), `410` (expired) |
+| GET | `/v1/public/{namespace}/{public_slug}/meta` | `200 {"filename","content_type","byte_size","created_at","expires_at"}` + same `Cache-Control` | `404`, `410` |
+
+#### CDN / custom domain (prompt 15)
+
+**Decision — B: CloudFront in front of the private S3 bucket via Origin Access
+Control.** When `PUBLIC_CDN_BASE_URL` is set, the public route returns a stable
+`f"{PUBLIC_CDN_BASE_URL}/{blob.key}"` for a **permanent** `stored` public blob
+instead of a presigned S3 URL; CloudFront reads the object through OAC and the
+bucket stays private. The cache key is the object key (plus
+`response-content-disposition`), so a permanent blob is cached at the edge for
+its full `max-age`. **Temporary** public blobs keep the short-lived presigned
+MinIO/S3 URL and are served `no-store` — never cached.
+
+Option A (CloudFront in front of the service) was rejected: the public route
+returns a `302` to a short-lived presigned URL and does not stream bytes, so
+caching the redirect is near useless.
+
+Invalidation: `app/core/cdn.py::invalidate(paths)` issues a CloudFront
+`create_invalidation` (no-op unless both `PUBLIC_CDN_BASE_URL` and
+`CLOUDFRONT_DISTRIBUTION_ID` are set) on `DELETE`, visibility→`private`, and
+content replace (`/complete`) of a blob that has a `public_slug`. Invalidation
+failures are logged, never surfaced — the storage change already succeeded.
+
+Local dev has no CDN: both settings are empty, everything stays on presigned
+MinIO URLs. Terraform for the edge lives in `../infra/terraform/staging/cdn_blob.tf`
+(see `docs/terraform-notes.md`).
 
 ---
 
@@ -518,6 +543,8 @@ Every metric here carries a `Namespace` dimension.
 | `default_temporary_ttl_seconds` | `DEFAULT_TEMPORARY_TTL_SECONDS` | `86400` | applied when `temporary` requested with no explicit ttl |
 | `max_temporary_ttl_seconds` | `MAX_TEMPORARY_TTL_SECONDS` | `604800` | ttl cap; over ⇒ 422 |
 | `public_base_url` | `PUBLIC_BASE_URL` | `http://localhost:8003` | base for `public_url` in responses |
+| `public_cdn_base_url` | `PUBLIC_CDN_BASE_URL` | `""` | when set, permanent public blobs are served as `f"{value}/{key}"` (CloudFront); temporary blobs keep presigned URLs. See §8.4 CDN note. |
+| `cloudfront_distribution_id` | `CLOUDFRONT_DISTRIBUTION_ID` | `""` | distribution to `create_invalidation` against on delete / visibility→private / replace; empty ⇒ `cdn.invalidate` is a no-op |
 
 `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` are read by boto3 directly (dev:
 `minioadmin` / `minioadmin`; AWS: the ECS task role). `AWS_EMF_*` are read in
