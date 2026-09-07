@@ -6,6 +6,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse, Response
 
 from app.adminui.dependencies import AdminUserServiceDep, CurrentAdmin
 from app.adminui.templating import render
+from app.api_keys.dependencies import ApiKeyServiceDep
 from app.blobs.dependencies import BlobServiceDep
 from app.blobs.models import BlobStatus, Visibility
 from app.blobs.repository import BlobRepository
@@ -65,14 +66,34 @@ async def dashboard(
 
 @router.get("/namespaces/{slug}", include_in_schema=False)
 async def namespace_detail(
-    slug: str, request: Request, admin_user: CurrentAdmin, namespaces: NamespaceServiceDep
+    slug: str,
+    request: Request,
+    admin_user: CurrentAdmin,
+    namespaces: NamespaceServiceDep,
+    api_keys: ApiKeyServiceDep,
 ) -> HTMLResponse:
-    return render(
+    return await _render_namespace_detail(request, admin_user, namespaces, api_keys, slug)
+
+
+async def _render_namespace_detail(
+    request: Request,
+    admin_user: object,
+    namespaces: NamespaceServiceDep,
+    api_keys: ApiKeyServiceDep,
+    slug: str,
+    plaintext_key: str | None = None,
+) -> HTMLResponse:
+    response = render(
         request,
         "namespace_detail.html",
         admin_user=admin_user,
         namespace=await namespaces.get_usage(slug),
+        api_keys=await api_keys.list(slug),
+        plaintext_key=plaintext_key,
     )
+    if plaintext_key is not None:
+        response.headers["Cache-Control"] = "no-store"
+    return response
 
 
 @router.post("/namespaces/{slug}", include_in_schema=False)
@@ -99,6 +120,32 @@ async def update_namespace_limits(
             image_max_dimension=_optional_int(image_max_dimension),
         ),
     )
+    return RedirectResponse(url=f"/admin/namespaces/{slug}", status_code=303)
+
+
+@router.post("/namespaces/{slug}/keys", include_in_schema=False)
+async def create_namespace_api_key(
+    slug: str,
+    request: Request,
+    admin_user: CurrentAdmin,
+    namespaces: NamespaceServiceDep,
+    api_keys: ApiKeyServiceDep,
+    label: Annotated[str, Form()],
+) -> HTMLResponse:
+    # Do not put the plaintext key in the signed (but not encrypted) session cookie.
+    await namespaces.get(slug)
+    _, plaintext_key = await api_keys.create(slug, label)
+    return await _render_namespace_detail(
+        request, admin_user, namespaces, api_keys, slug, plaintext_key
+    )
+
+
+@router.post("/namespaces/{slug}/keys/{key_id}/revoke", include_in_schema=False)
+async def revoke_namespace_api_key(
+    slug: str, key_id: UUID, admin_user: CurrentAdmin, api_keys: ApiKeyServiceDep
+) -> RedirectResponse:
+    del admin_user
+    await api_keys.revoke(slug, key_id)
     return RedirectResponse(url=f"/admin/namespaces/{slug}", status_code=303)
 
 

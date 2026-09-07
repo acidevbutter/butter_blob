@@ -58,3 +58,32 @@ async def test_admin_blob_browser_and_soft_delete(client, db_session, internal_h
     deleted = await client.post(f"/admin/blobs/{blob_id}/delete", follow_redirects=False)
     assert deleted.status_code == 303
     assert "deleted" in (await client.get(f"/admin/blobs/{blob_id}")).text
+
+
+async def test_admin_dashboard_creates_and_revokes_namespace_api_key(
+    client, db_session, admin_headers
+):
+    service = get_admin_user_service(db_session)
+    await service.register("keys@example.com", "safe-password")
+    await client.post(
+        "/admin/login", data={"email": "keys@example.com", "password": "safe-password"}
+    )
+    created = await client.post(
+        "/admin/v1/namespaces", json={"slug": "dashboard-keys"}, headers=admin_headers
+    )
+    assert created.status_code == 201
+
+    minted = await client.post(
+        "/admin/namespaces/dashboard-keys/keys", data={"label": "backend"}
+    )
+    assert minted.status_code == 200
+    assert minted.headers["cache-control"] == "no-store"
+    assert "bbk_" in minted.text
+
+    keys = await client.get("/admin/v1/namespaces/dashboard-keys/keys", headers=admin_headers)
+    key_id = keys.json()[0]["id"]
+    revoked = await client.post(
+        f"/admin/namespaces/dashboard-keys/keys/{key_id}/revoke", follow_redirects=False
+    )
+    assert revoked.status_code == 303
+    assert "Revoked" in (await client.get("/admin/namespaces/dashboard-keys")).text
