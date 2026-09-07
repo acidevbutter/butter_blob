@@ -1,6 +1,6 @@
 # Prompt 16 — HTML admin dashboard
 
-**Status:** ⬜ not started · **Runner:** Codex · **Phase:** 2.
+**Status:** ✅ done · **Runner:** Codex · **Phase:** 2.
 
 ## Goal
 A minimal server-rendered admin UI over the same admin service, so limits and blob
@@ -60,3 +60,8 @@ inspection don't require curl.
 The `X-Admin-Api-Key` JSON API and the session dashboard coexist — machine
 callers keep using the header; humans use the cookie. Don't gate the JSON routes
 behind the session.
+
+## Completion
+
+`GET /` remains redirected to `/docs`. The dashboard is available at `/admin`;
+its bootstrap command and session settings are documented in `README.md`.

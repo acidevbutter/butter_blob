@@ -10,3 +10,8 @@ No domain models exist yet; each domain prompt (04+) adds its line here, e.g.
     from app.namespaces import models as namespaces_models  # noqa: F401
     from app.blobs import models as blobs_models  # noqa: F401
 """
+
+from app.adminui import models as adminui_models  # noqa: F401
+from app.api_keys import models as api_keys_models  # noqa: F401
+from app.blobs import models as blobs_models  # noqa: F401
+from app.namespaces import models as namespaces_models  # noqa: F401

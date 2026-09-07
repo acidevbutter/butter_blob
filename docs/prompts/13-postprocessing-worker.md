@@ -1,6 +1,6 @@
 # Prompt 13 — Async post-processing worker
 
-**Status:** ⬜ not started · **Runner:** Codex · **Phase:** 2.
+**Status:** ✅ done · **Runner:** Codex · **Phase:** 2.
 
 ## Goal
 A separate worker process that runs jobs on a blob after it's stored: virus scan,

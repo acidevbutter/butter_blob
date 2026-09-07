@@ -1,6 +1,6 @@
 # Prompt 09 — Open public routes
 
-**Status:** ⬜ not started.
+**Status:** ✅ done.
 
 ## Goal
 The unauthenticated `/v1/public/*` tree: 302-redirect to a `public` blob's bytes,

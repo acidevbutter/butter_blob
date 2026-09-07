@@ -1,7 +1,7 @@
 from collections.abc import Awaitable, Callable
 
 from fastapi import FastAPI, Request, status
-from fastapi.responses import JSONResponse, Response
+from fastapi.responses import JSONResponse, RedirectResponse, Response
 
 Handler = Callable[[Request, Exception], Awaitable[Response]]
 _registry: dict[type[Exception], Handler] = {}
@@ -88,6 +88,13 @@ class StorageError(DomainError):
     default_detail = "Object storage is unavailable"
 
 
+class SessionRequiredError(Exception):
+    """Signal that an HTML admin request needs an authenticated session."""
+
+    def __init__(self, redirect_to: str = "/admin/login") -> None:
+        self.redirect_to = redirect_to
+
+
 def _make_handler(exc_type: type[DomainError]) -> Handler:
     async def handler(request: Request, exc: Exception) -> Response:
         detail = getattr(exc, "detail", exc_type.default_detail)
@@ -111,3 +118,9 @@ for _exc_type in (
     StorageError,
 ):
     exception_handler(_exc_type)(_make_handler(_exc_type))
+
+
+@exception_handler(SessionRequiredError)
+async def _handle_session_required(request: Request, exc: Exception) -> Response:
+    redirect_to = getattr(exc, "redirect_to", "/admin/login")
+    return RedirectResponse(url=redirect_to, status_code=status.HTTP_303_SEE_OTHER)

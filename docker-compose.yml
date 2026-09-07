@@ -32,6 +32,31 @@ services:
           action: sync+restart
           target: /srv/alembic
 
+  worker:
+    build: .
+    command: python -m app.worker
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: postgresql+asyncpg://blob:blob@shared-postgres:5432/blob
+      S3_ENDPOINT_URL: http://minio:9000
+      S3_FORCE_PATH_STYLE: "true"
+      BLOB_JOBS_ENDPOINT_URL: http://elasticmq:9324
+      AWS_ACCESS_KEY_ID: minioadmin
+      AWS_SECRET_ACCESS_KEY: minioadmin
+    volumes:
+      - ./app:/srv/app
+      - ./alembic:/srv/alembic
+    networks:
+      default:
+      devbutter_shared:
+
+  elasticmq:
+    image: softwaremill/elasticmq-native:1.5.7
+    profiles: ["dev"]
+    ports:
+      - "9324:9324"
+
 networks:
   default:
   # shared-postgres and minio live in the infra/ compose stack -- bring that up

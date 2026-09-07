@@ -46,7 +46,7 @@ is the one service that stores and serves files (**blobs**) for all of them.
 | **blob** | One stored file. Identified by a UUID. Has bytes in S3 and a metadata row in Postgres. |
 | **namespace** | The identifier of the app/API that owns a set of blobs (e.g. `crate_diggr`, `devbutter_backend`). Sent on every internal request as `X-Blob-Namespace`. Also the unit an admin configures limits on. |
 | **visibility** | `private` (default — reachable only by the owner namespace, via presigned URL) or `public` (reachable by anyone at a stable path). |
-| **status** | `pending` (row created, bytes not yet confirmed), `stored` (bytes confirmed in S3), `deleted` (soft-deleted). |
+| **status** | `pending` (row created, bytes not yet confirmed), `processing` (stored and queued), `stored` (ready), `deleted` (soft-deleted or quarantined). |
 | **temporary blob** | A blob with `expires_at` set. Stored under the `tmp/` key prefix. Reads after `expires_at` return `410`. |
 | **blob event** | An append-only audit record: which namespace did what to a blob, when. |
 
@@ -132,6 +132,15 @@ sequenceDiagram
     A-->>C: BlobRead
     A-)CW: BlobCompleted · BlobUploadedBytes · [ImageCompressed · CompressionBytesSaved]
 ```
+
+### 3.4 Async post-processing
+
+After proxy upload or `/complete`, eligible blobs transition to `processing` and
+an SQS job contains `blob_id`, `namespace`, and enabled kinds. The API never
+waits for the job. The worker acknowledges only successful messages; a failure
+uses SQS visibility-timeout retry/DLQ semantics. ClamAV positives are
+soft-deleted, removed from storage, and audited as `quarantined`; thumbnails are
+WebP sidecars recorded in `blob_metadata.derived`.
 
 ### 3.4 Download — private (owner) and public
 
@@ -230,15 +239,15 @@ No auth. Serves only blobs with `visibility=public` and `status=stored` that are
 not expired. Read-only.
 
 ### 4.2 `/internal/v1/*` — service callers
-Two required headers:
+The preferred identity is **`Authorization: Bearer bbk_...`**. Each key belongs
+to one namespace, is persisted only as a SHA-256 hash, and is revocable through
+the admin API. It supplies the caller namespace; if `X-Blob-Namespace` is also
+sent, it must normalize to the key's namespace or the request is **403**.
 
-- **`X-Service-Api-Key`** — must equal `settings.service_api_key`. Missing or wrong
-  ⇒ **404** (fail-closed: the internal surface is invisible without the secret) and
-  an `AuthFailure` metric (`Reason=service_api_key`).
-- **`X-Blob-Namespace`** — the calling API's identifier. Missing/blank ⇒ **422**.
-  Normalized to the `[a-z0-9_-]` charset (`Crate Diggr` → `crate-diggr`;
-  `devbutter_backend` stays as-is). Resolved to a `namespaces` row (upserted on
-  first use — prompt 04). This value **owns** every blob the request creates.
+During migration, `ALLOW_HEADER_NAMESPACE=true` permits the legacy
+`X-Service-Api-Key` + `X-Blob-Namespace` path. Its missing/wrong shared key is
+**404**; when the setting is false, header-only identity is **404**. The header
+namespace remains normalized and upserted on first use.
 
 Every blob-scoped route runs `_require_owner(blob, namespace)` → **404** if
 `blob.namespace != namespace`. There is no way for one namespace to see another's
@@ -248,6 +257,12 @@ blobs.
 **`X-Admin-Api-Key`** — must equal `settings.admin_api_key`. Missing/wrong ⇒ **404**
 + `AuthFailure` (`Reason=admin_api_key`). Admin routes set per-namespace limits and
 can inspect any namespace's usage.
+
+### 4.4 `/admin` — session dashboard
+The server-rendered dashboard uses a signed `butter_blob_admin` session cookie.
+Unauthenticated page requests redirect (303) to `/admin/login`. It can inspect
+all blobs, edit the same namespace-limit service used by `/admin/v1/*`, and
+soft-delete blobs. The header-authenticated JSON API remains unchanged.
 
 ---
 
@@ -346,7 +361,7 @@ Conventions: UUID pk `default=uuid.uuid4`; enums are `str, enum.Enum` in
 | `original_byte_size` | `BigInteger` | nullable; set when compression ran |
 | `checksum_sha256` | `String(64)` | nullable, **indexed** |
 | `visibility` | `String(20)` | `private` \| `public`, default `private` |
-| `status` | `String(20)` | `pending` \| `stored` \| `deleted`, default `pending`, **indexed** |
+| `status` | `String(20)` | `pending` \| `processing` \| `stored` \| `deleted`, default `pending`, **indexed** |
 | `public_slug` | `String(160)` | nullable, **unique** |
 | `expires_at` | `DateTime(tz)` | nullable = permanent, **indexed** |
 | `blob_metadata` | `JSON` | default `dict`; arbitrary tags from the owner. Serialized as `metadata` in API schemas. |
@@ -362,7 +377,8 @@ Constraints: `UniqueConstraint("namespace", "key", name="uq_blob_namespace_key")
 ### 7.3 `blob_events`
 `id` uuid pk · `blob_id` uuid FK→`blobs.id` **indexed** · `namespace` `String(100)`
 **indexed** · `action` `String(30)` (`created`, `uploaded`, `completed`, `updated`,
-`visibility_changed`, `downloaded`, `deleted`, `expired`) · `detail` `JSON` default
+`visibility_changed`, `downloaded`, `deleted`, `expired`, `processing`, `processed`,
+`quarantined`) · `detail` `JSON` default
 `dict` · `at` `DateTime(tz)` `server_default=func.now()` **indexed**.
 
 ---
@@ -488,6 +504,9 @@ Every metric here carries a `Namespace` dimension.
 | `database_url` | `DATABASE_URL` | `postgresql+asyncpg://blob:blob@shared-postgres:5432/blob` | async driver |
 | `service_api_key` | `SERVICE_API_KEY` | `""` | `/internal/v1/*` |
 | `admin_api_key` | `ADMIN_API_KEY` | `""` | `/admin/v1/*` |
+| `session_secret` | `SESSION_SECRET` | `dev-insecure-change-me` | signs `/admin` sessions |
+| `session_cookie_name` | `SESSION_COOKIE_NAME` | `butter_blob_admin` | `/admin` session cookie |
+| `allow_header_namespace` | `ALLOW_HEADER_NAMESPACE` | `true` | migration window for shared-key + namespace headers |
 | `aws_region` | `AWS_REGION` | `us-east-1` | |
 | `s3_bucket` | `S3_BUCKET` | `devbutter-blob-local` | |
 | `s3_endpoint_url` | `S3_ENDPOINT_URL` | `None` | `http://minio:9000` locally |

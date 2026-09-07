@@ -127,17 +127,36 @@ scripts/curl_smoke_test.sh        # (added in prompt 11)
 | `ENVIRONMENT` | `development` | `development` / `staging` / `preprod` / `production` |
 | `DATABASE_URL` | `postgresql+asyncpg://blob:blob@shared-postgres:5432/blob` | async driver |
 | `SERVICE_API_KEY` | — | `X-Service-Api-Key` for `/internal/v1/*` |
+| `ALLOW_HEADER_NAMESPACE` | `true` | allows the deprecated shared-key + `X-Blob-Namespace` path; bearer `bbk_` keys always identify their namespace |
 | `ADMIN_API_KEY` | — | `X-Admin-Api-Key` for `/admin/v1/*` |
+| `SESSION_SECRET` | `dev-insecure-change-me` | signing secret for the admin dashboard cookie |
+| `SESSION_COOKIE_NAME` | `butter_blob_admin` | admin dashboard cookie name |
 | `AWS_REGION` | `us-east-1` | |
 | `S3_BUCKET` | `devbutter-blob-local` | |
 | `S3_ENDPOINT_URL` | `http://minio:9000` locally | unset on AWS |
 | `S3_FORCE_PATH_STYLE` | `true` | required for MinIO; `false` on AWS |
 | `S3_PRESIGN_EXPIRES_SECONDS` | `900` | ceiling for presigned URL lifetimes |
+| `BLOB_JOBS_QUEUE_URL` | — | SQS queue URL for async post-processing |
+| `BLOB_JOBS_ENDPOINT_URL` | — | ElasticMQ endpoint locally; unset on AWS |
+| `CLAMAV_HOST` | — | enables ClamAV scanning when configured |
+| `THUMBNAIL_WIDTHS` | `256` | comma-separated WebP thumbnail widths |
+| `ENABLE_VIDEO_TRANSCODE` | `false` | reserves video jobs; ffmpeg wiring remains pending |
 | `MAX_UPLOAD_BYTES` | `52428800` | global per-file ceiling |
 | `DEFAULT_TEMPORARY_TTL_SECONDS` | `86400` | |
 | `MAX_TEMPORARY_TTL_SECONDS` | `604800` | ttl cap; over ⇒ 422 |
 | `PUBLIC_BASE_URL` | `http://localhost:8003` | base for `public_url` in responses |
 | `AWS_EMF_*` | see `.env.example` | must keep `AWS_EMF_ENVIRONMENT=Local` |
+
+## Admin dashboard
+
+Open `/admin`. The session dashboard is independent from the machine-oriented
+`/admin/v1/*` API, which continues to require `X-Admin-Api-Key`.
+
+Bootstrap the first active user after migrations:
+
+```bash
+poetry run python -c 'import asyncio; from app.adminui.repository import AdminUserRepository; from app.adminui.service import AdminUserService; from app.db.session import session_factory; exec("async def bootstrap():\\n async with session_factory() as db:\\n  await AdminUserService(AdminUserRepository(db)).register(\"admin@example.com\", \"change-me\")"); asyncio.run(bootstrap())'
+```
 
 ## Deploying to AWS (shape, not IaC)
 
@@ -152,5 +171,5 @@ schedule hitting `POST /internal/v1/maintenance/purge-expired`. See
 
 Out of the phase-1 build, tracked as later prompts: per-namespace DB-backed bearer
 keys (12), an async post-processing worker for virus scan / thumbnails /
-transcode (13), a `devbutter_backend` client (14), a CDN in front of the public
-routes (15), and an HTML admin dashboard (16).
+transcode (13), a `devbutter_backend` client (14), and a CDN in front of the
+public routes (15).
