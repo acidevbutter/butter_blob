@@ -39,14 +39,23 @@ class PublicService:
 
     async def redirect_url(self, namespace: str, public_slug: str, *, disposition: str) -> str:
         blob = await self.resolve(namespace, public_slug)
-        url = await self.storage.generate_presigned_get(
-            blob.key,
-            min(300, settings.s3_presign_expires_seconds),
-            disposition=disposition,
-            filename=blob.filename,
-        )
+        if settings.public_cdn_base_url and not blob.is_temporary:
+            # CloudFront/OAC serves the S3 object as stored; `disposition` only
+            # applies to the presigned-URL fallback below.
+            url = f"{settings.public_cdn_base_url.rstrip('/')}/{blob.key}"
+        else:
+            url = await self.storage.generate_presigned_get(
+                blob.key,
+                min(300, settings.s3_presign_expires_seconds),
+                disposition=disposition,
+                filename=blob.filename,
+            )
         await emit_blob_metric("PublicBlobServed", namespace=namespace)
         return url
+
+    async def cache_control(self, namespace: str, public_slug: str) -> str:
+        blob = await self.resolve(namespace, public_slug)
+        return "no-store" if blob.is_temporary else "public, max-age=86400"
 
     async def meta(self, namespace: str, public_slug: str) -> PublicMeta:
         return PublicMeta.model_validate(await self.resolve(namespace, public_slug))

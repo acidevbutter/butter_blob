@@ -3,6 +3,7 @@ from typing import cast
 from uuid import UUID
 
 from app.blobs.models import Blob
+from app.settings.config import settings
 
 
 async def _upload(client, headers, *, visibility: str = "private") -> dict[str, object]:
@@ -44,6 +45,7 @@ async def test_public_blob_redirects_without_auth_and_emits_metric(
     assert response.headers["location"].startswith("https://fake-s3.local/")
     assert "method=GET" in response.headers["location"]
     assert "expires=300" in response.headers["location"]
+    assert response.headers["cache-control"] == "public, max-age=86400"
     assert emitted == [("PublicBlobServed", internal_headers["X-Blob-Namespace"], {})]
 
 
@@ -102,3 +104,32 @@ async def test_public_metadata_has_only_public_fields(client, internal_headers):
         "created_at",
         "expires_at",
     }
+    assert response.headers["cache-control"] == "public, max-age=86400"
+
+
+async def test_permanent_public_blob_uses_cdn_and_temporary_blob_does_not(
+    client, internal_headers
+):
+    settings.public_cdn_base_url = "https://cdn.example.test"
+    permanent = await _publish(client, internal_headers)
+    permanent_response = await client.get(
+        f"/v1/public/{internal_headers['X-Blob-Namespace']}/{permanent['public_slug']}",
+        follow_redirects=False,
+    )
+    assert permanent_response.headers["location"].startswith("https://cdn.example.test/blobs/")
+    assert permanent_response.headers["cache-control"] == "public, max-age=86400"
+
+    temporary_response = await client.post(
+        "/internal/v1/blobs",
+        headers=internal_headers,
+        files={"file": ("temporary.txt", b"temporary", "text/plain")},
+        data={"visibility": "public", "ttl_seconds": "60"},
+    )
+    assert temporary_response.status_code == 201
+    temporary = cast(dict[str, object], temporary_response.json())
+    response = await client.get(
+        f"/v1/public/{internal_headers['X-Blob-Namespace']}/{temporary['public_slug']}",
+        follow_redirects=False,
+    )
+    assert response.headers["location"].startswith("https://fake-s3.local/")
+    assert response.headers["cache-control"] == "no-store"

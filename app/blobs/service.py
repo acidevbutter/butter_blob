@@ -17,6 +17,7 @@ from app.blobs.models import Blob, BlobEvent, BlobEventAction, BlobStatus, Visib
 from app.blobs.repository import BlobRepository
 from app.blobs.schemas import BlobPatch, BlobRead, PresignRequest
 from app.core import imaging
+from app.core.cdn import invalidate
 from app.core.decorators import log_errors
 from app.core.exceptions import (
     ConflictError,
@@ -58,6 +59,21 @@ class BlobService:
     def _key(namespace: str, blob_id: UUID, filename: str, *, temporary: bool) -> str:
         prefix = "tmp" if temporary else "blobs"
         return f"{prefix}/{namespace}/{blob_id}/{filename}"
+
+    @staticmethod
+    def _new_public_slug() -> str:
+        return secrets.token_urlsafe(12).lower()
+
+    async def _create_retrying_slug(self, blob: Blob) -> Blob:
+        """Persist a new blob, regenerating ``public_slug`` on the rare collision."""
+        for attempt in range(3):
+            try:
+                return await self.repo.create(blob)
+            except ConflictError:
+                if blob.public_slug is None or attempt == 2:
+                    raise
+                blob.public_slug = self._new_public_slug()
+        raise ConflictError("Could not allocate a public slug")  # pragma: no cover
 
     async def _effective_limits(self, namespace: str) -> Namespace:
         return await self.namespaces.get(namespace)
@@ -139,10 +155,13 @@ class BlobService:
     def as_read(self, blob: Blob) -> BlobRead:
         response = BlobRead.model_validate(blob)
         if blob.visibility == Visibility.PUBLIC and blob.public_slug:
-            response.public_url = (
-                f"{settings.public_base_url.rstrip('/')}/v1/public/"
-                f"{blob.namespace}/{blob.public_slug}"
-            )
+            if settings.public_cdn_base_url and not blob.is_temporary:
+                response.public_url = f"{settings.public_cdn_base_url.rstrip('/')}/{blob.key}"
+            else:
+                response.public_url = (
+                    f"{settings.public_base_url.rstrip('/')}/v1/public/"
+                    f"{blob.namespace}/{blob.public_slug}"
+                )
         return response
 
     @staticmethod
@@ -263,6 +282,8 @@ class BlobService:
                 "BlobVisibilityChanged", namespace=namespace, To=Visibility(blob.visibility).value
             )
         await emit_blob_metric("BlobUpdated", namespace=namespace)
+        if previous_visibility == Visibility.PUBLIC and blob.visibility == Visibility.PRIVATE:
+            await invalidate([blob.key])
         return blob
 
     async def delete(self, namespace: str, blob_id: UUID, *, hard: bool) -> None:
@@ -282,6 +303,8 @@ class BlobService:
             await self.repo.hard_delete(blob)
         else:
             await self.repo.soft_delete(blob)
+        if blob.visibility == Visibility.PUBLIC or blob.public_slug is not None:
+            await invalidate([blob.key])
         await emit_blob_metric("BlobDeleted", namespace=namespace, Mode=mode)
         if blob.status == BlobStatus.STORED and blob.byte_size is not None:
             await emit_blob_metric("BlobDeletedBytes", blob.byte_size, "Bytes", namespace=namespace)
@@ -359,8 +382,10 @@ class BlobService:
             created_by_namespace=namespace,
         )
         blob.key = self._key(namespace, blob.id, name, temporary=blob.is_temporary)
+        if blob.visibility == Visibility.PUBLIC:
+            blob.public_slug = self._new_public_slug()
         await self.storage.put_object(blob.key, data, content_type)
-        blob = await self.repo.create(blob)
+        blob = await self._create_retrying_slug(blob)
         await self.repo.add_event(blob.id, namespace, BlobEventAction.CREATED)
         await self.repo.add_event(blob.id, namespace, BlobEventAction.UPLOADED)
         await emit_blob_metric(
@@ -413,7 +438,9 @@ class BlobService:
             created_by_namespace=namespace,
         )
         blob.key = self._key(namespace, blob.id, name, temporary=blob.is_temporary)
-        blob = await self.repo.create(blob)
+        if blob.visibility == Visibility.PUBLIC:
+            blob.public_slug = self._new_public_slug()
+        blob = await self._create_retrying_slug(blob)
         await self.repo.add_event(
             blob.id, namespace, BlobEventAction.CREATED, {"expected_byte_size": payload.byte_size}
         )
@@ -432,6 +459,7 @@ class BlobService:
         blob = await self.repo.get_for_namespace(blob_id, namespace)
         if blob is None:
             raise NotFoundError()
+        previous_key = blob.key
         try:
             head = await self.storage.head_object(blob.key)
         except NotFoundError as exc:
@@ -496,6 +524,8 @@ class BlobService:
         blob.checksum_sha256 = checksum
         blob.updated_by_namespace = namespace
         blob = await self.repo.update(blob)
+        if blob.visibility == Visibility.PUBLIC:
+            await invalidate([previous_key, blob.key])
         await self.repo.add_event(blob.id, namespace, BlobEventAction.COMPLETED)
         await emit_blob_metric("BlobCompleted", namespace=namespace)
         await emit_blob_metric(
