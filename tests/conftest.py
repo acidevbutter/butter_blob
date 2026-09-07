@@ -20,12 +20,24 @@ TEST_NAMESPACE = "test-app"
 
 @pytest.fixture(autouse=True)
 def _settings_override() -> Iterator[None]:
-    original = (settings.service_api_key, settings.admin_api_key, settings.allow_header_namespace)
+    original = (
+        settings.service_api_key,
+        settings.admin_api_key,
+        settings.allow_header_namespace,
+        settings.public_cdn_base_url,
+        settings.cloudfront_distribution_id,
+    )
     settings.service_api_key = TEST_SERVICE_API_KEY
     settings.admin_api_key = TEST_ADMIN_API_KEY
     settings.allow_header_namespace = True
     yield
-    settings.service_api_key, settings.admin_api_key, settings.allow_header_namespace = original
+    (
+        settings.service_api_key,
+        settings.admin_api_key,
+        settings.allow_header_namespace,
+        settings.public_cdn_base_url,
+        settings.cloudfront_distribution_id,
+    ) = original
 
 
 @pytest.fixture

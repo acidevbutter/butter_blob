@@ -111,16 +111,25 @@ Ordered by prompt. Tick a box when it's done **and** its acceptance passes
 - [x] `worker` + `elasticmq` compose services
 - [x] **Acceptance:** `test_worker` (enqueue, thumbnail sidecars, quarantine, retry-on-failure, no-op when unconfigured)
 
-## 14 — `devbutter_backend` client — Status: ⬜ not started · Codex · edits `../devbutter_backend`
-- [ ] `app/core/clients/butter_blob_client.py` (mirror `butter_mind_client`)
-- [ ] config block + `.env(.example)` + `lifespan` close
-- [ ] **Acceptance:** devbutter_backend tests (round-trip mock, error wrapping, metrics, missing-key guard)
+## 14 — `devbutter_backend` client — Status: ✅ done · Codex · edits `../devbutter_backend`
+- [x] `app/core/clients/butter_blob_client.py` (mirror `butter_mind_client`)
+- [x] config block + `.env(.example)` + `lifespan` close (`close_butter_blob_client`)
+- [x] **Acceptance:** `tests/test_butter_blob_client.py` (round-trip mock + both headers,
+      404/413/507 → `UpstreamServiceError` w/ status, `download_url` url field,
+      `emit_metrics` `UpstreamService="butter_blob"`, missing-key guard before HTTP);
+      `ruff` + `pytest` green (repo `mypy` pre-existing dirty, no new errors)
 
-## 15 — CDN / custom domain for `/v1/public/*` — Status: ⬜ not started · Codex · edits `../infra`
-- [ ] Terraform: CloudFront + OAC + ACM + Route53 for `blob.devbutter.tech`
-- [ ] `public_cdn_base_url` setting; CDN URLs for permanent public blobs; cache headers
-- [ ] `app/core/cdn.py::invalidate` on delete / visibility change / replace
-- [ ] **Acceptance:** `terraform plan` shape; app emits CDN URLs + correct `Cache-Control`; invalidate called
+## 15 — CDN / custom domain for `/v1/public/*` — Status: ✅ done · Codex · edits `../infra`
+- [x] Terraform: `../infra/terraform/staging/cdn_blob.tf` — CloudFront + OAC + cache
+      policy + ACM (us-east-1) + Route53 + private-bucket OAC policy (`validate`/`fmt` clean)
+- [x] `public_cdn_base_url` / `cloudfront_distribution_id` settings; CDN URLs for
+      permanent public blobs (`redirect_url` + `BlobRead.public_url`); `Cache-Control`
+      `public, max-age=86400` (permanent) / `no-store` (temporary) on `302` + `/meta`
+- [x] direct public upload now allocates a `public_slug` (proxy + presign paths)
+- [x] `app/core/cdn.py::invalidate` on delete / visibility→private / content replace
+- [x] `docs/spec.md` §8.4 (decision B) + §10, `docs/terraform-notes.md`, `.env.example`
+- [x] **Acceptance:** `test_public` + `test_blobs_manage` CDN cases green; `ruff`/`mypy`
+      green. `terraform plan` still needs the `devbutter-nonprod` SSO profile + live zone.
 
 ## 16 — HTML admin dashboard — Status: ✅ done · Codex
 - [x] `SessionMiddleware` + `admin_users` (bcrypt) + `SessionRequiredError`
