@@ -23,6 +23,9 @@ async def test_admin_dashboard_login_and_shared_limits(client, db_session, admin
     dashboard = await client.get("/admin")
     assert dashboard.status_code == 200
     assert "ui-test" in dashboard.text
+    detail = await client.get("/admin/namespaces/ui-test")
+    assert detail.status_code == 200
+    assert 'action="/admin/namespaces/ui-test"' in detail.text
 
     update = await client.post(
         "/admin/namespaces/ui-test",
