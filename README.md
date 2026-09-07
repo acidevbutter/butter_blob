@@ -150,7 +150,9 @@ scripts/curl_smoke_test.sh        # (added in prompt 11)
 ## Admin dashboard
 
 Open `/admin`. The session dashboard is independent from the machine-oriented
-`/admin/v1/*` API, which continues to require `X-Admin-Api-Key`.
+`/admin/v1/*` API, which continues to require `X-Admin-Api-Key`. It manages
+namespace limits, blobs, and namespace-bound bearer keys. A new key is shown
+once only and can later be revoked from the same namespace page.
 
 Bootstrap the first active user after migrations:
 

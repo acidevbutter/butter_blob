@@ -1,1 +1,32 @@
-{% extends "base.html" %}{% block content %}<p><a href="/admin">← namespaces</a> · <a href="/admin/namespaces/{{ namespace.slug }}/blobs">Browse blobs</a></p><h1>{{ namespace.slug }}</h1><form class="card" method="post"><label>Storage quota bytes<input name="max_storage_bytes" value="{{ namespace.max_storage_bytes or '' }}"></label><label>Max file bytes<input name="max_file_bytes" value="{{ namespace.max_file_bytes or '' }}"></label><label>Allowed content types (comma-separated)<input name="allowed_content_types" value="{{ (namespace.allowed_content_types or [])|join(', ') }}"></label><label>Allowed extensions (comma-separated)<input name="allowed_extensions" value="{{ (namespace.allowed_extensions or [])|join(', ') }}"></label><label>Image quality 1–100<input name="image_compression_quality" value="{{ namespace.image_compression_quality or '' }}"></label><label>Image max dimension<input name="image_max_dimension" value="{{ namespace.image_max_dimension or '' }}"></label><button>Save limits</button></form>{% endblock %}
+{% extends "base.html" %}
+{% block content %}
+<p><a href="/admin">← namespaces</a> · <a href="/admin/namespaces/{{ namespace.slug }}/blobs">Browse blobs</a></p>
+<h1>{{ namespace.slug }}</h1>
+
+<form class="card" method="post">
+  <label>Storage quota bytes<input name="max_storage_bytes" value="{{ namespace.max_storage_bytes or '' }}"></label>
+  <label>Max file bytes<input name="max_file_bytes" value="{{ namespace.max_file_bytes or '' }}"></label>
+  <label>Allowed content types (comma-separated)<input name="allowed_content_types" value="{{ (namespace.allowed_content_types or [])|join(', ') }}"></label>
+  <label>Allowed extensions (comma-separated)<input name="allowed_extensions" value="{{ (namespace.allowed_extensions or [])|join(', ') }}"></label>
+  <label>Image quality 1–100<input name="image_compression_quality" value="{{ namespace.image_compression_quality or '' }}"></label>
+  <label>Image max dimension<input name="image_max_dimension" value="{{ namespace.image_max_dimension or '' }}"></label>
+  <button>Save limits</button>
+</form>
+
+<section class="card">
+  <h2>API keys</h2>
+  {% if plaintext_key %}
+  <p class="error">Copy this key now. It will not be shown again.</p>
+  <pre>{{ plaintext_key }}</pre>
+  {% endif %}
+  <form action="/admin/namespaces/{{ namespace.slug }}/keys" method="post">
+    <label>Label<input name="label" required maxlength="200" placeholder="e.g. devbutter backend"></label>
+    <button>Create key</button>
+  </form>
+  <table><thead><tr><th>Label</th><th>Created</th><th>Last used</th><th>Status</th><th></th></tr></thead><tbody>
+  {% for key in api_keys %}
+    <tr><td>{{ key.label }}</td><td>{{ key.created_at }}</td><td>{{ key.last_used_at or 'Never' }}</td><td>{{ 'Revoked' if key.revoked_at else 'Active' }}</td><td>{% if not key.revoked_at %}<form action="/admin/namespaces/{{ namespace.slug }}/keys/{{ key.id }}/revoke" method="post"><button>Revoke</button></form>{% endif %}</td></tr>
+  {% else %}<tr><td colspan="5">No API keys.</td></tr>{% endfor %}
+  </tbody></table>
+</section>
+{% endblock %}

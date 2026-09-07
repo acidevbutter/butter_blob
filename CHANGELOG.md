@@ -14,3 +14,8 @@
 
 ### Corrigido
 - Traduz falhas durante a leitura de downloads S3 para `StorageError` e registra `StorageErrorCount`.
+- Aceita `THUMBNAIL_WIDTHS=256`, como documentado no ambiente de exemplo.
+- Isola os testes do endpoint MinIO e da fila configurados no `.env` local.
+
+### Alterado
+- O dashboard agora cria e revoga chaves bearer por namespace sem expor a chave no cookie de sessão.

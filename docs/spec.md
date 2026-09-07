@@ -262,7 +262,9 @@ can inspect any namespace's usage.
 The server-rendered dashboard uses a signed `butter_blob_admin` session cookie.
 Unauthenticated page requests redirect (303) to `/admin/login`. It can inspect
 all blobs, edit the same namespace-limit service used by `/admin/v1/*`, and
-soft-delete blobs. The header-authenticated JSON API remains unchanged.
+soft-delete blobs. Each namespace page can create a bearer key (shown once in a
+`no-store` response) and revoke an active key. The header-authenticated JSON
+API remains unchanged.
 
 ---
 

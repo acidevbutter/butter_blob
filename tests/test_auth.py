@@ -6,6 +6,7 @@ from fastapi import APIRouter
 
 from app.core.dependencies import CallerNamespace, RequireAdminApiKey, RequireServiceApiKey
 from app.main import app
+from app.settings.config import Settings
 
 _probe = APIRouter(prefix="/_probe", include_in_schema=False)
 
@@ -64,3 +65,7 @@ async def test_admin_without_key_is_404(client):
 async def test_admin_with_key_ok(client, admin_headers):
     response = await client.get("/_probe/admin", headers=admin_headers)
     assert response.status_code == 200
+
+
+def test_thumbnail_width_setting_accepts_single_documented_value():
+    assert Settings(thumbnail_widths=256).thumbnail_widths == [256]

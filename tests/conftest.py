@@ -20,12 +20,29 @@ TEST_NAMESPACE = "test-app"
 
 @pytest.fixture(autouse=True)
 def _settings_override() -> Iterator[None]:
-    original = (settings.service_api_key, settings.admin_api_key, settings.allow_header_namespace)
+    original = (
+        settings.service_api_key,
+        settings.admin_api_key,
+        settings.allow_header_namespace,
+        settings.s3_endpoint_url,
+        settings.blob_jobs_queue_url,
+        settings.blob_jobs_endpoint_url,
+    )
     settings.service_api_key = TEST_SERVICE_API_KEY
     settings.admin_api_key = TEST_ADMIN_API_KEY
     settings.allow_header_namespace = True
+    settings.s3_endpoint_url = None
+    settings.blob_jobs_queue_url = ""
+    settings.blob_jobs_endpoint_url = None
     yield
-    settings.service_api_key, settings.admin_api_key, settings.allow_header_namespace = original
+    (
+        settings.service_api_key,
+        settings.admin_api_key,
+        settings.allow_header_namespace,
+        settings.s3_endpoint_url,
+        settings.blob_jobs_queue_url,
+        settings.blob_jobs_endpoint_url,
+    ) = original
 
 
 @pytest.fixture

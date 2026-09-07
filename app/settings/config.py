@@ -1,5 +1,6 @@
 from typing import Literal
 
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -46,6 +47,16 @@ class Settings(BaseSettings):
     # Base URL clients use to reach this service's public routes; used to build
     # public_url values echoed in responses.
     public_base_url: str = "http://localhost:8003"
+
+    @field_validator("thumbnail_widths", mode="before")
+    @classmethod
+    def normalize_thumbnail_widths(cls, value: object) -> object:
+        """Accept the documented single-width env form (``THUMBNAIL_WIDTHS=256``)."""
+        if isinstance(value, int):
+            return [value]
+        if isinstance(value, str):
+            return [int(width.strip()) for width in value.split(",") if width.strip()]
+        return value
 
 
 settings = Settings()
