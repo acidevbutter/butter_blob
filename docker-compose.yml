@@ -33,6 +33,7 @@ services:
           target: /srv/alembic
 
   worker:
+    profiles: ["jobs"]
     build: .
     command: python -m app.worker
     env_file:
