@@ -528,7 +528,7 @@ Every metric here carries a `Namespace` dimension.
 | `environment` | `ENVIRONMENT` | `development` | `development`/`staging`/`preprod`/`production` |
 | `debug` | `DEBUG` | `false` | |
 | `log_level` | `LOG_LEVEL` | `INFO` | |
-| `database_url` | `DATABASE_URL` | `postgresql+asyncpg://blob:blob@shared-postgres:5432/blob` | async driver |
+| `database_host` / `port` / `user` / `password` / `name` | `DATABASE_HOST` / `PORT` / `USER` / `PASSWORD` / `NAME` | `shared-postgres` / `5432` / `blob` | Pydantic assembles `postgresql+asyncpg://` |
 | `service_api_key` | `SERVICE_API_KEY` | `""` | `/internal/v1/*` |
 | `admin_api_key` | `ADMIN_API_KEY` | `""` | `/admin/v1/*` |
 | `session_secret` | `SESSION_SECRET` | `dev-insecure-change-me` | signs `/admin` sessions |

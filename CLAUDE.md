@@ -74,7 +74,7 @@ poetry run pytest
 poetry run ruff check .
 poetry run mypy .
 
-# migrations (needs a DB; DATABASE_URL from .env)
+# migrations (needs a DB; DATABASE_* from .env)
 poetry run alembic revision --autogenerate -m "add blobs"
 poetry run alembic upgrade head
 

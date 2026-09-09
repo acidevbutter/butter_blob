@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Conexão Postgres passa a ser `DATABASE_HOST` / `PORT` / `USER` / `PASSWORD` /
+  `NAME`; o Pydantic monta `postgresql+asyncpg://`. `DATABASE_URL` residual
+  impede o boot fora de development.
+
 ### Adicionado
 - Chaves bearer revogáveis por namespace, armazenadas somente como hash e geridas por rotas administrativas.
 - Rotas públicas sem autenticação para redirecionar blobs publicados e consultar metadados mínimos.

@@ -7,7 +7,11 @@ services:
     env_file:
       - .env
     environment:
-      DATABASE_URL: postgresql+asyncpg://blob:blob@shared-postgres:5432/blob
+      DATABASE_HOST: shared-postgres
+      DATABASE_PORT: "5432"
+      DATABASE_USER: blob
+      DATABASE_PASSWORD: blob
+      DATABASE_NAME: blob
       S3_ENDPOINT_URL: http://minio:9000
       S3_FORCE_PATH_STYLE: "true"
       # MinIO doesn't verify these against IAM, but boto3 refuses to sign a
@@ -39,7 +43,11 @@ services:
     env_file:
       - .env
     environment:
-      DATABASE_URL: postgresql+asyncpg://blob:blob@shared-postgres:5432/blob
+      DATABASE_HOST: shared-postgres
+      DATABASE_PORT: "5432"
+      DATABASE_USER: blob
+      DATABASE_PASSWORD: blob
+      DATABASE_NAME: blob
       S3_ENDPOINT_URL: http://minio:9000
       S3_FORCE_PATH_STYLE: "true"
       BLOB_JOBS_ENDPOINT_URL: http://elasticmq:9324

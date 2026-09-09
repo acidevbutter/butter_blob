@@ -125,7 +125,7 @@ scripts/curl_smoke_test.sh        # (added in prompt 11)
 | Variable | Default | Notes |
 |---|---|---|
 | `ENVIRONMENT` | `development` | `development` / `staging` / `preprod` / `production` |
-| `DATABASE_URL` | `postgresql+asyncpg://blob:blob@shared-postgres:5432/blob` | async driver |
+| `DATABASE_HOST` / `PORT` / `USER` / `PASSWORD` / `NAME` | `shared-postgres` / `5432` / `blob` | Pydantic monta `postgresql+asyncpg://` |
 | `SERVICE_API_KEY` | — | `X-Service-Api-Key` for `/internal/v1/*` |
 | `ALLOW_HEADER_NAMESPACE` | `true` | allows the deprecated shared-key + `X-Blob-Namespace` path; bearer `bbk_` keys always identify their namespace |
 | `ADMIN_API_KEY` | — | `X-Admin-Api-Key` for `/admin/v1/*` |
