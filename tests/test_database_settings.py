@@ -22,3 +22,27 @@ def test_rejects_database_url_outside_development(monkeypatch: pytest.MonkeyPatc
     monkeypatch.setenv("DATABASE_URL", "postgresql+asyncpg://legacy")
     with pytest.raises(ValidationError, match="DATABASE_URL is no longer read"):
         Settings(_env_file=None, environment="staging")
+
+
+@pytest.mark.parametrize(
+    ("environment", "bucket"),
+    [
+        ("preprod", "devbutter-staging-blob"),
+        ("production", "devbutter-prod-blob"),
+    ],
+)
+def test_selects_aws_bucket_for_deployed_environment(
+    environment: str, bucket: str
+) -> None:
+    settings = Settings(_env_file=None, environment=environment)
+    assert settings.s3_bucket == bucket
+    assert settings.s3_force_path_style is False
+
+
+def test_rejects_minio_endpoint_outside_development() -> None:
+    with pytest.raises(ValidationError, match="S3_ENDPOINT_URL is only supported"):
+        Settings(
+            _env_file=None,
+            environment="preprod",
+            s3_endpoint_url="http://minio:9000",
+        )

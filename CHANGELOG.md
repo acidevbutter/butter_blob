@@ -26,6 +26,9 @@
   única linha por request.
 
 ### Alterado
+- O armazenamento S3 seleciona `devbutter-staging-blob` em pré-produção e
+  `devbutter-prod-blob` em produção; endpoints MinIO não são aceitos fora do
+  desenvolvimento.
 - O dashboard agora cria e revoga chaves bearer por namespace sem expor a chave no cookie de sessão.
 - Logging passa a ser JSON estruturado (um objeto por linha: `timestamp`,
   `level`, `logger`, `message` + campos de `extra`), via `JsonFormatter` em

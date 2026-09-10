@@ -5,6 +5,13 @@ from urllib.parse import quote
 from pydantic import field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+_S3_BUCKET_BY_ENVIRONMENT = {
+    # The existing staging bucket is the pre-production bucket.
+    "staging": "devbutter-staging-blob",
+    "preprod": "devbutter-staging-blob",
+    "production": "devbutter-prod-blob",
+}
+
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
@@ -27,12 +34,13 @@ class Settings(BaseSettings):
     session_secret: str = "dev-insecure-change-me"
     session_cookie_name: str = "butter_blob_admin"
 
-    # Object storage. s3_endpoint_url is set only for local dev (MinIO); left unset
-    # on AWS so boto3 talks to real S3. s3_force_path_style must be true for MinIO.
+    # Object storage. Production-like environments select their AWS bucket from
+    # ENVIRONMENT unless S3_BUCKET explicitly overrides it. S3_ENDPOINT_URL is
+    # development-only (MinIO).
     aws_region: str = "us-east-1"
-    s3_bucket: str = "devbutter-blob-local"
+    s3_bucket: str = ""
     s3_endpoint_url: str | None = None
-    s3_force_path_style: bool = True
+    s3_force_path_style: bool | None = None
     s3_presign_expires_seconds: int = 900
 
     # Public permanent blobs can be served by CloudFront while temporary blobs
@@ -85,6 +93,18 @@ class Settings(BaseSettings):
                 "DATABASE_URL is no longer read; set DATABASE_HOST, DATABASE_PORT, "
                 "DATABASE_USER, DATABASE_PASSWORD and DATABASE_NAME"
             )
+        if self.environment != "development" and self.s3_endpoint_url:
+            raise ValueError(
+                "S3_ENDPOINT_URL is only supported in development; use AWS S3 directly "
+                "outside development"
+            )
+
+        if not self.s3_bucket:
+            self.s3_bucket = _S3_BUCKET_BY_ENVIRONMENT.get(
+                self.environment, "devbutter-blob-local"
+            )
+        if self.s3_force_path_style is None:
+            self.s3_force_path_style = self.environment == "development"
         return self
 
 

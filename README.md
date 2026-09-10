@@ -132,9 +132,9 @@ scripts/curl_smoke_test.sh        # (added in prompt 11)
 | `SESSION_SECRET` | `dev-insecure-change-me` | signing secret for the admin dashboard cookie |
 | `SESSION_COOKIE_NAME` | `butter_blob_admin` | admin dashboard cookie name |
 | `AWS_REGION` | `us-east-1` | |
-| `S3_BUCKET` | `devbutter-blob-local` | |
-| `S3_ENDPOINT_URL` | `http://minio:9000` locally | unset on AWS |
-| `S3_FORCE_PATH_STYLE` | `true` | required for MinIO; `false` on AWS |
+| `S3_BUCKET` | environment-selected | `devbutter-staging-blob` in preprod and `devbutter-prod-blob` in production; an explicit value overrides this. |
+| `S3_ENDPOINT_URL` | `http://minio:9000` locally | unset outside development; MinIO endpoints are rejected there. |
+| `S3_FORCE_PATH_STYLE` | `true` locally | automatically `false` outside development. |
 | `S3_PRESIGN_EXPIRES_SECONDS` | `900` | ceiling for presigned URL lifetimes |
 | `BLOB_JOBS_QUEUE_URL` | — | SQS queue URL for async post-processing |
 | `BLOB_JOBS_ENDPOINT_URL` | — | ElasticMQ endpoint locally; unset on AWS |
