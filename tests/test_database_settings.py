@@ -34,7 +34,14 @@ def test_rejects_database_url_outside_development(monkeypatch: pytest.MonkeyPatc
 def test_selects_aws_bucket_for_deployed_environment(
     environment: str, bucket: str
 ) -> None:
-    settings = Settings(_env_file=None, environment=environment)
+    settings = Settings(
+        _env_file=None,
+        environment=environment,
+        session_secret="real-secret",
+        database_password="real-password",
+        service_api_key="key",
+        admin_api_key="key",
+    )
     assert settings.s3_bucket == bucket
     assert settings.s3_force_path_style is False
 

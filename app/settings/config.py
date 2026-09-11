@@ -107,5 +107,24 @@ class Settings(BaseSettings):
             self.s3_force_path_style = self.environment == "development"
         return self
 
+    @model_validator(mode="after")
+    def reject_dev_secrets_outside_development(self) -> "Settings":
+        if self.environment == "development":
+            return self
+        defaults = type(self).model_fields
+        if self.session_secret == defaults["session_secret"].default:
+            raise ValueError(
+                "SESSION_SECRET must not be left at its development default outside development"
+            )
+        if self.database_password == defaults["database_password"].default:
+            raise ValueError(
+                "DATABASE_PASSWORD must not be left at its development default outside development"
+            )
+        if not self.service_api_key:
+            raise ValueError("SERVICE_API_KEY must be set outside development")
+        if not self.admin_api_key:
+            raise ValueError("ADMIN_API_KEY must be set outside development")
+        return self
+
 
 settings = Settings()
