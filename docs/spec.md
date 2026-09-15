@@ -136,9 +136,11 @@ sequenceDiagram
 ### 3.4 Async post-processing
 
 After proxy upload or `/complete`, eligible blobs transition to `processing` and
-an SQS job contains `blob_id`, `namespace`, and enabled kinds. The API never
-waits for the job. The worker acknowledges only successful messages; a failure
-uses SQS visibility-timeout retry/DLQ semantics. ClamAV positives are
+a Celery task carries `blob_id`, `namespace`, and enabled kinds. The API never
+waits for the job. A failure retries with exponential backoff up to
+`MAX_RETRIES`, then the task ends in Celery's own FAILURE state — the blob just
+stays out of `stored` (visible via its status/events) rather than sitting in a
+separate dead-letter queue. ClamAV positives are
 soft-deleted, removed from storage, and audited as `quarantined`; thumbnails are
 WebP sidecars recorded in `blob_metadata.derived`.
 

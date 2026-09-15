@@ -136,8 +136,8 @@ scripts/curl_smoke_test.sh        # (added in prompt 11)
 | `S3_ENDPOINT_URL` | `http://minio:9000` locally | unset outside development; MinIO endpoints are rejected there. |
 | `S3_FORCE_PATH_STYLE` | `true` locally | automatically `false` outside development. |
 | `S3_PRESIGN_EXPIRES_SECONDS` | `900` | ceiling for presigned URL lifetimes |
-| `BLOB_JOBS_QUEUE_URL` | — | SQS queue URL for async post-processing |
-| `BLOB_JOBS_ENDPOINT_URL` | — | ElasticMQ endpoint locally; unset on AWS |
+| `REDIS_URL` | — | Celery broker/result backend for async post-processing; empty disables the worker |
+| `REDIS_QUEUE_NAME` | `blob-jobs` | Celery queue the worker consumes from |
 | `CLAMAV_HOST` | — | enables ClamAV scanning when configured |
 | `THUMBNAIL_WIDTHS` | `256` | comma-separated WebP thumbnail widths |
 | `ENABLE_VIDEO_TRANSCODE` | `false` | reserves video jobs; ffmpeg wiring remains pending |

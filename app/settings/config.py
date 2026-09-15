@@ -48,10 +48,11 @@ class Settings(BaseSettings):
     public_cdn_base_url: str = ""
     cloudfront_distribution_id: str = ""
 
-    # Async post-processing. Leave blob_jobs_queue_url empty to disable workers
+    # Async post-processing. Celery broker/result backend -- same Redis
+    # instance in every environment. Leave redis_url empty to disable workers
     # in an environment; the API then keeps uploads in the stored state.
-    blob_jobs_queue_url: str = ""
-    blob_jobs_endpoint_url: str | None = None
+    redis_url: str = ""
+    redis_queue_name: str = "blob-jobs"
     clamav_host: str | None = None
     clamav_port: int = 3310
     thumbnail_widths: list[int] = [256]

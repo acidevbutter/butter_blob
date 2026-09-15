@@ -25,8 +25,7 @@ def _settings_override() -> Iterator[None]:
         settings.admin_api_key,
         settings.allow_header_namespace,
         settings.s3_endpoint_url,
-        settings.blob_jobs_queue_url,
-        settings.blob_jobs_endpoint_url,
+        settings.redis_url,
         settings.public_cdn_base_url,
         settings.cloudfront_distribution_id,
     )
@@ -34,16 +33,14 @@ def _settings_override() -> Iterator[None]:
     settings.admin_api_key = TEST_ADMIN_API_KEY
     settings.allow_header_namespace = True
     settings.s3_endpoint_url = None
-    settings.blob_jobs_queue_url = ""
-    settings.blob_jobs_endpoint_url = None
+    settings.redis_url = ""
     yield
     (
         settings.service_api_key,
         settings.admin_api_key,
         settings.allow_header_namespace,
         settings.s3_endpoint_url,
-        settings.blob_jobs_queue_url,
-        settings.blob_jobs_endpoint_url,
+        settings.redis_url,
         settings.public_cdn_base_url,
         settings.cloudfront_distribution_id,
     ) = original

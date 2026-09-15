@@ -1,14 +1,19 @@
-"""SQS consumer. Failed jobs are deliberately not acknowledged for retry/DLQ."""
+"""Celery task for blob post-processing (virus scan, thumbnails, ...).
+
+Runs in its own worker process (celery -A app.worker.celery_app:celery_app
+worker), sharing the same models/services as the API. Redis/Celery replaced
+the ElasticMQ-emulated-SQS setup this used to poll; the processing logic
+below is unchanged -- only how a job arrives changed, from an SQS receive
+loop to a Celery task invocation.
+"""
 
 from __future__ import annotations
 
 import asyncio
 import io
-import json
 import logging
 import socket
 import struct
-from collections.abc import Mapping
 from typing import Any
 from uuid import UUID
 
@@ -17,13 +22,15 @@ from PIL import Image
 from app.blobs.models import BlobEventAction, BlobStatus
 from app.blobs.repository import BlobRepository
 from app.core.decorators import log_call
-from app.core.jobs import build_sqs_client
 from app.core.observability import emit_blob_metric
 from app.core.storage import BlobStorage
 from app.db.session import session_factory
 from app.settings.config import settings
+from app.worker.celery_app import TASK_NAME, celery_app
 
 logger = logging.getLogger(__name__)
+
+MAX_RETRIES = 5
 
 
 def _clamd_scan(host: str, port: int, data: bytes) -> str | None:
@@ -74,40 +81,31 @@ async def _transcode_video() -> None:
     raise NotImplementedError("Video transcoding is not wired yet")
 
 
-def _job_payload(message: Mapping[str, Any]) -> dict[str, Any]:
-    body = message.get("Body", message)
-    if isinstance(body, str):
-        parsed = json.loads(body)
-    elif isinstance(body, Mapping):
-        parsed = dict(body)
-    else:
-        raise ValueError("SQS message body must be a JSON object")
-    if not isinstance(parsed.get("blob_id"), str) or not isinstance(parsed.get("namespace"), str):
+def _validate_job(blob_id: str, namespace: str, kinds: list[str]) -> None:
+    if not isinstance(blob_id, str) or not isinstance(namespace, str):
         raise ValueError("Blob job requires blob_id and namespace")
-    kinds = parsed.get("kinds")
     if not isinstance(kinds, list) or not all(isinstance(kind, str) for kind in kinds):
         raise ValueError("Blob job requires a list of kinds")
-    return dict(parsed)
 
 
 @log_call
 async def process_job(
-    message: Mapping[str, Any],
+    blob_id: str,
+    namespace: str,
+    kinds: list[str],
     *,
     storage: BlobStorage | None = None,
     session_factory_override: Any | None = None,
 ) -> None:
-    """Process one job. Raising keeps the SQS message visible for retry."""
-    payload = _job_payload(message)
-    blob_id = UUID(payload["blob_id"])
-    namespace = payload["namespace"]
-    kinds = payload["kinds"]
+    """Process one job. Raising keeps the task queued for retry."""
+    _validate_job(blob_id, namespace, kinds)
+    parsed_blob_id = UUID(blob_id)
 
     factory = session_factory_override or session_factory
     async with factory() as session:
         repo = BlobRepository(session)
         storage = storage or BlobStorage()
-        blob = await repo.get_for_namespace(blob_id, namespace)
+        blob = await repo.get_for_namespace(parsed_blob_id, namespace)
         if blob is None or blob.status == BlobStatus.DELETED:
             return
 
@@ -154,37 +152,27 @@ async def process_job(
         await repo.add_event(blob.id, namespace, BlobEventAction.PROCESSED)
 
 
-async def run_forever() -> None:
-    """Long-poll SQS and ack only successful jobs."""
-    if not settings.blob_jobs_queue_url:
-        logger.warning("BLOB_JOBS_QUEUE_URL is empty; worker is disabled")
-        return
-    client = build_sqs_client()
-    while True:
-        response = await asyncio.to_thread(
-            client.receive_message,
-            QueueUrl=settings.blob_jobs_queue_url,
-            MaxNumberOfMessages=10,
-            WaitTimeSeconds=20,
-            VisibilityTimeout=60,
-        )
-        messages = response.get("Messages", [])
-        if isinstance(messages, list):
-            await process_messages(client, messages)
-
-
-async def process_messages(client: Any, messages: list[Mapping[str, Any]]) -> None:
-    """Acknowledge only messages whose post-processing completed successfully."""
-    for message in messages:
-        try:
-            await process_job(message)
-        except Exception:
-            logger.exception("Blob job failed; leaving message for retry")
-            continue
-        receipt_handle = message.get("ReceiptHandle")
-        if isinstance(receipt_handle, str):
-            await asyncio.to_thread(
-                client.delete_message,
-                QueueUrl=settings.blob_jobs_queue_url,
-                ReceiptHandle=receipt_handle,
-            )
+@celery_app.task(  # type: ignore[untyped-decorator]  # celery ships no type information
+    bind=True,
+    name=TASK_NAME,
+    autoretry_for=(Exception,),
+    max_retries=MAX_RETRIES,
+    retry_backoff=True,
+    retry_backoff_max=300,
+    retry_jitter=True,
+    acks_late=True,
+)
+def process_job_task(
+    self: Any,
+    *,
+    blob_id: str,
+    namespace: str,
+    kinds: list[str],
+) -> None:
+    """Bounded, backed-off retry (up to MAX_RETRIES) replaces the old
+    un-acked SQS message retrying forever with no DLQ. On final failure
+    Celery marks the task FAILURE; the blob simply stays out of
+    BlobStatus.STORED (no thumbnail/virus-scan event recorded), which is
+    visible via the blob's own status/events rather than a separate queue.
+    """
+    asyncio.run(process_job(blob_id, namespace, kinds))
