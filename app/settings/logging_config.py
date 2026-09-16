@@ -25,6 +25,13 @@ class JsonFormatter(logging.Formatter):
     """
 
     def format(self, record: logging.LogRecord) -> str:
+        if record.name == "metrics":
+            # app.core.metrics.emit_metrics already renders a flat, complete
+            # JSON payload for New Relic ingestion -- wrapping it as this
+            # formatter's own "message" string would nest it inside another
+            # JSON object, hiding every metric field from New Relic's
+            # top-level-key auto-parsing.
+            return record.getMessage()
         payload: dict[str, Any] = {
             "timestamp": datetime.fromtimestamp(record.created, tz=UTC).isoformat(),
             "level": record.levelname,

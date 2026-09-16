@@ -18,11 +18,12 @@ alembic = "^1.13.0"
 asyncpg = "^0.29.0"
 psycopg2-binary = "^2.9.9"
 boto3 = "^1.35.0"
+celery = "^5.4.0"
+redis = "^5.0.8"
 httpx = "^0.27.0"
 python-multipart = "^0.0.12"
 python-slugify = "^8.0.4"
 pillow = "^10.4.0"
-aws-embedded-metrics = "^3.5.0"
 jinja2 = "^3.1.6"
 bcrypt = "^5.0.0"
 itsdangerous = "^2.2.0"
@@ -57,8 +58,8 @@ plugins = ["pydantic.mypy"]
 strict = true
 
 [[tool.mypy.overrides]]
-# boto3/botocore/moto ship no type information.
-module = ["boto3.*", "botocore.*", "moto.*"]
+# boto3/botocore/moto/celery ship no type information.
+module = ["boto3.*", "botocore.*", "moto.*", "celery.*"]
 ignore_missing_imports = true
 
 [[tool.mypy.overrides]]

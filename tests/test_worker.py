@@ -1,13 +1,12 @@
-import json
 from io import BytesIO
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock
 from uuid import UUID, uuid4
 
 from PIL import Image
 
 from app.blobs.models import Blob, BlobEventAction, BlobStatus, Visibility
 from app.blobs.repository import BlobRepository
-from app.worker import consumer
+from app.worker import tasks
 
 
 def _png() -> bytes:
@@ -22,7 +21,6 @@ async def test_image_job_creates_thumbnail_and_marks_blob_stored(
 ):
     queued = AsyncMock()
     monkeypatch.setattr("app.blobs.service.enqueue", queued)
-    monkeypatch.setattr("app.blobs.service.settings.blob_jobs_queue_url", "http://queue/blob")
     response = await client.post(
         "/internal/v1/blobs",
         headers=internal_headers,
@@ -38,8 +36,10 @@ async def test_image_job_creates_thumbnail_and_marks_blob_stored(
     job = call.args[0]
     assert job["kinds"] == ["image_thumbnail"]
 
-    await consumer.process_job(
-        {"Body": json.dumps(job)},
+    await tasks.process_job(
+        job["blob_id"],
+        job["namespace"],
+        job["kinds"],
         storage=blob_storage,
         session_factory_override=lambda: db_session,
     )
@@ -67,12 +67,14 @@ async def test_virus_hit_quarantines_blob(db_session, blob_storage, monkeypatch)
     db_session.add(blob)
     await db_session.commit()
     await blob_storage.put_object(blob.key, b"infected", "text/plain")
-    monkeypatch.setattr(consumer, "_scan_for_virus", AsyncMock(return_value="Test.Signature"))
+    monkeypatch.setattr(tasks, "_scan_for_virus", AsyncMock(return_value="Test.Signature"))
     quarantined = AsyncMock()
-    monkeypatch.setattr(consumer, "emit_blob_metric", quarantined)
+    monkeypatch.setattr(tasks, "emit_blob_metric", quarantined)
 
-    await consumer.process_job(
-        {"Body": f'{{"blob_id":"{blob.id}","namespace":"test-app","kinds":["virus_scan"]}}'},
+    await tasks.process_job(
+        str(blob.id),
+        "test-app",
+        ["virus_scan"],
         storage=blob_storage,
         session_factory_override=lambda: db_session,
     )
@@ -102,12 +104,24 @@ async def test_upload_without_applicable_jobs_stays_stored(
     queued.assert_not_awaited()
 
 
-async def test_failed_job_is_not_acknowledged(monkeypatch):
+def test_process_job_task_runs_process_job_and_lets_failures_propagate(monkeypatch):
+    """process_job_task is a thin sync/async bridge -- autoretry_for=(Exception,)
+    on the Celery task decorator is what actually turns a raised exception into
+    a bounded, backed-off retry; here we only prove the bridge itself calls
+    process_job and re-raises unchanged, since that's the part our code owns.
+
+    Plain `def`, not `async def`: process_job_task calls asyncio.run()
+    internally, which raises if it's invoked from inside a running loop --
+    exactly the loop pytest-asyncio would otherwise wrap this test in.
+    """
     failing = AsyncMock(side_effect=RuntimeError("retry me"))
-    monkeypatch.setattr(consumer, "process_job", failing)
-    queue = MagicMock()
+    monkeypatch.setattr(tasks, "process_job", failing)
 
-    await consumer.process_messages(queue, [{"Body": "{}", "ReceiptHandle": "receipt"}])
+    try:
+        tasks.process_job_task.run(blob_id="b", namespace="n", kinds=["virus_scan"])
+    except RuntimeError as exc:
+        assert str(exc) == "retry me"
+    else:
+        raise AssertionError("expected RuntimeError to propagate")
 
-    failing.assert_awaited_once()
-    queue.delete_message.assert_not_called()
+    failing.assert_awaited_once_with("b", "n", ["virus_scan"])
