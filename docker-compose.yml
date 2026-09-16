@@ -1,6 +1,8 @@
 services:
   api:
-    build: .
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.api
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
     ports:
       - "8003:8000"
@@ -34,7 +36,9 @@ services:
 
   worker:
     profiles: ["jobs"]
-    build: .
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.worker
     command: celery -A app.worker.celery_app:celery_app worker --loglevel=info
     env_file:
       - .env

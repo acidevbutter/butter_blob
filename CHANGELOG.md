@@ -13,7 +13,7 @@
 - Camada de blobs, auditoria e upload por proxy ou URL pré-assinada, com compressão de imagens.
 - Gestão interna de blobs: consulta, URL de download, eventos, atualização de metadados e exclusão.
 - Purge idempotente de blobs temporários expirados com retenção de auditoria.
-- Worker SQS assíncrono para antivírus, miniaturas de imagens e reserva para transcodificação.
+- Worker Celery/Redis assíncrono para antivírus, miniaturas de imagens e reserva para transcodificação.
 - Dashboard HTML com sessão para gestão de namespaces e inspeção ou exclusão de blobs.
 
 ### Corrigido
