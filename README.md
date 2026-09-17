@@ -14,8 +14,8 @@ local dev).
   auto-expire; expired reads return `410` and a purge job reclaims the space.
 - **Audited** — every create / upload / update / download / delete is recorded in
   `blob_events`.
-- **Observed** — request-level and file-level CloudWatch EMF metrics
-  (`DevButter/ButterBlob`).
+- **Observed** — request-level and file-level structured JSON metric logs
+  (`DevButter/ButterBlob`), ingested by New Relic.
 
 > **Status:** foundation only (prompts 00–03). Settings, logging, middleware,
 > `core/` (decorators, exceptions, metrics, storage), the async DB layer and
@@ -40,7 +40,7 @@ sequences, blob lifecycle, and the data model.
 | Objects | S3 / MinIO via boto3 (behind `app/core/storage.py`) |
 | Schemas | Pydantic v2 |
 | Images | Pillow |
-| Metrics | CloudWatch EMF (`aws-embedded-metrics`) |
+| Metrics | Structured JSON metric logs (stdlib `logging`), ingested by New Relic |
 | Packaging | Poetry |
 | Lint / types | Ruff, mypy (strict) |
 | Tests | pytest + httpx `ASGITransport` + in-memory storage fake |
@@ -145,7 +145,6 @@ scripts/curl_smoke_test.sh        # (added in prompt 11)
 | `DEFAULT_TEMPORARY_TTL_SECONDS` | `86400` | |
 | `MAX_TEMPORARY_TTL_SECONDS` | `604800` | ttl cap; over ⇒ 422 |
 | `PUBLIC_BASE_URL` | `http://localhost:8003` | base for `public_url` in responses |
-| `AWS_EMF_*` | see `.env.example` | must keep `AWS_EMF_ENVIRONMENT=Local` |
 
 ## Admin dashboard
 

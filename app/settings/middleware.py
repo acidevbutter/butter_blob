@@ -17,7 +17,7 @@ logger = logging.getLogger("app.request")
 def _log_route(request: Request) -> str:
     """Route template for the log event.
 
-    Unlike `route_template` (used for the low-cardinality EMF `Route`
+    Unlike `route_template` (used for the low-cardinality metric `Route`
     dimension, which must never carry a raw path), the log field falls back
     to the actual request path for unmatched/404 requests -- useful for
     debugging, and safe because log fields aren't metric dimensions.
@@ -30,7 +30,7 @@ def _log_route(request: Request) -> str:
 class RequestContextMiddleware(BaseHTTPMiddleware):
     """Assigns a request id, times the request, emits exactly one structured
     JSON log event per request (success or failure), and emits request-level
-    EMF metrics (RequestCount, Latency, 4xx/5xxCount)."""
+    metrics (RequestCount, Latency, 4xx/5xxCount)."""
 
     async def dispatch(self, request: Request, call_next: RequestResponseEndpoint) -> Response:
         request_id = str(uuid.uuid4())

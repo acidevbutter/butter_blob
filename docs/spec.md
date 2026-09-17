@@ -25,7 +25,7 @@ is the one service that stores and serves files (**blobs**) for all of them.
 - Temporary blobs: a `ttl_seconds` on upload makes the blob auto-expire; expired
   reads return `410`; a maintenance endpoint reclaims the storage.
 - Audit: every state change is recorded in `blob_events`.
-- CloudWatch EMF metrics: request-level + file-level.
+- Structured JSON metric logs (New Relic-ingested): request-level + file-level.
 
 **Phase 2 (prompts 12–16), previously "out of scope", now planned:**
 
@@ -68,13 +68,13 @@ flowchart LR
         SVC --> REPO["repository (async SQLAlchemy 2.0)"]
         SVC --> STORE["core/storage.py — boto3 S3"]
         SVC --> IMG["core/imaging.py — Pillow compress/resize"]
-        SVC --> OBS["core/observability.py → core/metrics.py (EMF)"]
+        SVC --> OBS["core/observability.py → core/metrics.py (JSON logs)"]
     end
 
     REPO --> PG[("shared-postgres / blob DB<br/>namespaces · blobs · blob_events")]
     STORE -->|"put · head · delete · presign"| S3[("S3 / MinIO :9000<br/>blobs/&lt;ns&gt;/&lt;id&gt;/… · tmp/&lt;ns&gt;/&lt;id&gt;/…")]
     BROWSER -.->|"302 → presigned GET"| S3
-    OBS -.->|"stdout → awslogs → CloudWatch"| CW["CloudWatch EMF<br/>DevButter/ButterBlob"]
+    OBS -.->|"stdout → nrdot-collector"| NR["New Relic Log_metric<br/>DevButter/ButterBlob"]
 ```
 
 ### 3.2 Proxy upload — limit enforcement + image compression
@@ -103,7 +103,7 @@ sequenceDiagram
     A->>S: put_object(key = blobs|tmp/<ns>/<id>/<filename>)
     A->>D: insert blob status=stored · blob_events(created, uploaded)
     A-->>C: 201 BlobRead
-    A-)CW: BlobCreated · BlobUploadedBytes · [ImageCompressed · CompressionBytesSaved] · BlobProxyUploadLatency
+    A-)NR: BlobCreated · BlobUploadedBytes · [ImageCompressed · CompressionBytesSaved] · BlobProxyUploadLatency
 ```
 
 ### 3.3 Presigned upload + complete
@@ -130,7 +130,7 @@ sequenceDiagram
     end
     A->>A: status=stored · byte_size · original_byte_size · checksum_sha256 · blob_events(completed)
     A-->>C: BlobRead
-    A-)CW: BlobCompleted · BlobUploadedBytes · [ImageCompressed · CompressionBytesSaved]
+    A-)NR: BlobCompleted · BlobUploadedBytes · [ImageCompressed · CompressionBytesSaved]
 ```
 
 ### 3.4 Async post-processing
@@ -476,13 +476,17 @@ MinIO URLs. Terraform for the edge lives in `../infra/terraform/staging/cdn_blob
 
 ---
 
-## 9. Metrics catalogue — CloudWatch EMF
+## 9. Metrics catalogue — structured JSON logs
 
-Namespace `DevButter/ButterBlob`, service `butter-blob`, log group
-`/ecs/devbutter/staging/blob`. `configure_metrics()` forces the `"Local"` stdout
-sink (metrics ship via the `awslogs` driver → CloudWatch Logs auto-extraction).
-Every emission carries coarse dimensions `{Environment, Service}` plus the
-per-call dimensions below. Telemetry failures never affect a request.
+Namespace `DevButter/ButterBlob`, service `butter-blob` (both hardcoded constants
+in `core/metrics.py`). Each metric emission is a single JSON line written via the
+standard `logging` module to the `metrics` logger; the host's New Relic
+OpenTelemetry collector classifies stdout by its `message` field and routes
+metric events to the `Log_metric` partition (see
+`/etc/nrdot-collector/docker-stats-config.yaml` on the VPS). `configure_metrics()`
+is a no-op retained only as an application-lifecycle extension point. Every
+emission carries coarse dimensions `{Environment, Service}` plus the per-call
+dimensions below. Telemetry failures never affect a request.
 
 ### 9.1 Request-level (`RequestContextMiddleware`)
 | Metric | Unit | Dimensions |
@@ -549,8 +553,8 @@ Every metric here carries a `Namespace` dimension.
 | `cloudfront_distribution_id` | `CLOUDFRONT_DISTRIBUTION_ID` | `""` | distribution to `create_invalidation` against on delete / visibility→private / replace; empty ⇒ `cdn.invalidate` is a no-op |
 
 `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` are read by boto3 directly (dev:
-`minioadmin` / `minioadmin`; AWS: the ECS task role). `AWS_EMF_*` are read in
-`core/metrics.py` via `os.getenv`; keep `AWS_EMF_ENVIRONMENT=Local` everywhere.
+`minioadmin` / `minioadmin`; AWS: the ECS task role). `core/metrics.py` has no
+env-configurable settings — namespace and service name are hardcoded constants.
 
 ---
 

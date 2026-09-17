@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- Removidas as variáveis `AWS_EMF_*` de `.env.example`: `core/metrics.py` já
+  não as lia (namespace e nome do serviço são constantes fixas desde a
+  migração para logs JSON). README, `CLAUDE.md` e `docs/spec.md` atualizados
+  para descrever o pipeline atual (stdout → New Relic `nrdot-collector` na
+  VPS) em vez do antigo CloudWatch EMF/ECS.
+
 - Conexão Postgres passa a ser `DATABASE_HOST` / `PORT` / `USER` / `PASSWORD` /
   `NAME`; o Pydantic monta `postgresql+asyncpg://`. `DATABASE_URL` residual
   impede o boot fora de development.
