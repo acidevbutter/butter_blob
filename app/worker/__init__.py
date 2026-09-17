@@ -1,1 +1,1 @@
-"""Asynchronous SQS worker for blob post-processing."""
+"""Celery worker for blob post-processing (virus scan, thumbnails, ...)."""

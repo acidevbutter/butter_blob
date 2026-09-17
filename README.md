@@ -14,8 +14,8 @@ local dev).
   auto-expire; expired reads return `410` and a purge job reclaims the space.
 - **Audited** — every create / upload / update / download / delete is recorded in
   `blob_events`.
-- **Observed** — request-level and file-level CloudWatch EMF metrics
-  (`DevButter/ButterBlob`).
+- **Observed** — request-level and file-level structured JSON metric logs
+  (`DevButter/ButterBlob`), ingested by New Relic.
 
 > **Status:** foundation only (prompts 00–03). Settings, logging, middleware,
 > `core/` (decorators, exceptions, metrics, storage), the async DB layer and
@@ -40,7 +40,7 @@ sequences, blob lifecycle, and the data model.
 | Objects | S3 / MinIO via boto3 (behind `app/core/storage.py`) |
 | Schemas | Pydantic v2 |
 | Images | Pillow |
-| Metrics | CloudWatch EMF (`aws-embedded-metrics`) |
+| Metrics | Structured JSON metric logs (stdlib `logging`), ingested by New Relic |
 | Packaging | Poetry |
 | Lint / types | Ruff, mypy (strict) |
 | Tests | pytest + httpx `ASGITransport` + in-memory storage fake |
@@ -125,19 +125,19 @@ scripts/curl_smoke_test.sh        # (added in prompt 11)
 | Variable | Default | Notes |
 |---|---|---|
 | `ENVIRONMENT` | `development` | `development` / `staging` / `preprod` / `production` |
-| `DATABASE_URL` | `postgresql+asyncpg://blob:blob@shared-postgres:5432/blob` | async driver |
+| `DATABASE_HOST` / `PORT` / `USER` / `PASSWORD` / `NAME` | `shared-postgres` / `5432` / `blob` | Pydantic monta `postgresql+asyncpg://` |
 | `SERVICE_API_KEY` | — | `X-Service-Api-Key` for `/internal/v1/*` |
 | `ALLOW_HEADER_NAMESPACE` | `true` | allows the deprecated shared-key + `X-Blob-Namespace` path; bearer `bbk_` keys always identify their namespace |
 | `ADMIN_API_KEY` | — | `X-Admin-Api-Key` for `/admin/v1/*` |
 | `SESSION_SECRET` | `dev-insecure-change-me` | signing secret for the admin dashboard cookie |
 | `SESSION_COOKIE_NAME` | `butter_blob_admin` | admin dashboard cookie name |
 | `AWS_REGION` | `us-east-1` | |
-| `S3_BUCKET` | `devbutter-blob-local` | |
-| `S3_ENDPOINT_URL` | `http://minio:9000` locally | unset on AWS |
-| `S3_FORCE_PATH_STYLE` | `true` | required for MinIO; `false` on AWS |
+| `S3_BUCKET` | environment-selected | `devbutter-staging-blob` in preprod and `devbutter-prod-blob` in production; an explicit value overrides this. |
+| `S3_ENDPOINT_URL` | `http://minio:9000` locally | unset outside development; MinIO endpoints are rejected there. |
+| `S3_FORCE_PATH_STYLE` | `true` locally | automatically `false` outside development. |
 | `S3_PRESIGN_EXPIRES_SECONDS` | `900` | ceiling for presigned URL lifetimes |
-| `BLOB_JOBS_QUEUE_URL` | — | SQS queue URL for async post-processing |
-| `BLOB_JOBS_ENDPOINT_URL` | — | ElasticMQ endpoint locally; unset on AWS |
+| `REDIS_URL` | — | Celery broker/result backend for async post-processing; empty disables the worker |
+| `REDIS_QUEUE_NAME` | `blob-jobs` | Celery queue the worker consumes from |
 | `CLAMAV_HOST` | — | enables ClamAV scanning when configured |
 | `THUMBNAIL_WIDTHS` | `256` | comma-separated WebP thumbnail widths |
 | `ENABLE_VIDEO_TRANSCODE` | `false` | reserves video jobs; ffmpeg wiring remains pending |
@@ -145,7 +145,6 @@ scripts/curl_smoke_test.sh        # (added in prompt 11)
 | `DEFAULT_TEMPORARY_TTL_SECONDS` | `86400` | |
 | `MAX_TEMPORARY_TTL_SECONDS` | `604800` | ttl cap; over ⇒ 422 |
 | `PUBLIC_BASE_URL` | `http://localhost:8003` | base for `public_url` in responses |
-| `AWS_EMF_*` | see `.env.example` | must keep `AWS_EMF_ENVIRONMENT=Local` |
 
 ## Admin dashboard
 

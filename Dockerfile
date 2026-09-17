@@ -5,7 +5,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     POETRY_NO_INTERACTION=1 \
     POETRY_VIRTUALENVS_CREATE=false
 
-WORKDIR /srv
+WORKDIR /app
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential libpq-dev curl \
@@ -16,14 +16,16 @@ RUN pip install --no-cache-dir poetry==1.8.3
 COPY pyproject.toml poetry.lock* ./
 RUN poetry install --only main --no-root --no-ansi
 
-COPY app ./app
-COPY alembic ./alembic
-COPY alembic.ini ./
+RUN groupadd --system --gid 10001 app \
+    && useradd --system --uid 10001 --gid app --home-dir /app app
+
+COPY --chown=app:app app ./app
+COPY --chown=app:app alembic ./alembic
+COPY --chown=app:app alembic.ini ./
 COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 RUN chmod +x /usr/local/bin/docker-entrypoint.sh
 
-RUN useradd --create-home --uid 1000 appuser
-USER appuser
+USER app
 
 EXPOSE 8000
 

@@ -32,11 +32,11 @@ app/
 ├── settings/
 │   ├── config.py     # pydantic-settings Settings, module-level `settings`
 │   ├── logging_config.py
-│   └── middleware.py # RequestContextMiddleware (request id, timing, request-level EMF)
+│   └── middleware.py # RequestContextMiddleware (request id, timing, request-level metrics)
 ├── core/
 │   ├── decorators.py    # log_call / log_errors
 │   ├── exceptions.py    # DomainError subclasses + self-registering handlers (registry pattern)
-│   ├── metrics.py       # CloudWatch EMF: configure_metrics(), emit_metrics(metrics, dimensions=None)
+│   ├── metrics.py       # structured JSON metric logs: configure_metrics(), emit_metrics(metrics, dimensions=None)
 │   ├── observability.py # emit_blob_metric(name, value, unit, *, namespace, **dims)
 │   ├── storage.py       # BlobStorage — boto3 S3 wrapper; every call via asyncio.to_thread;
 │   │                    #   botocore errors → StorageError / NotFoundError
@@ -74,7 +74,7 @@ poetry run pytest
 poetry run ruff check .
 poetry run mypy .
 
-# migrations (needs a DB; DATABASE_URL from .env)
+# migrations (needs a DB; DATABASE_* from .env)
 poetry run alembic revision --autogenerate -m "add blobs"
 poetry run alembic upgrade head
 

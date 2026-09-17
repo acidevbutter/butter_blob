@@ -12,7 +12,7 @@ through butter_blob the same way it already talks to `butter_mind`.
 ## Reference
 `../devbutter_backend/app/core/clients/butter_mind_client.py` — the exact pattern
 to mirror: `httpx.AsyncClient(base_url=..., timeout=...)`, `@log_call` methods,
-non-2xx ⇒ `UpstreamServiceError(status_code=...)`, EMF
+non-2xx ⇒ `UpstreamServiceError(status_code=...)`, metrics
 `UpstreamCallCount`/`UpstreamLatency`/`UpstreamErrorCount` with
 `{"UpstreamService": ..., "Operation": ..., "StatusClass": ...}`, module singleton
 + `close_*` called from `lifespan`. `../devbutter_backend/app/settings/config.py`

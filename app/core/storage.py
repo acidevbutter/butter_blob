@@ -3,7 +3,8 @@ imports boto3 and never sees a botocore exception -- every failure is translated
 to app.core.exceptions.StorageError (or NotFoundError for a missing object).
 
 boto3 has no native asyncio support, so every call is pushed to a worker thread
-with asyncio.to_thread (same approach as butter_relay's SQS worker).
+with asyncio.to_thread (same approach app.worker.tasks uses for the ClamAV
+socket call).
 """
 
 from __future__ import annotations
