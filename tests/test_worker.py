@@ -110,9 +110,10 @@ def test_process_job_task_runs_process_job_and_lets_failures_propagate(monkeypat
     a bounded, backed-off retry; here we only prove the bridge itself calls
     process_job and re-raises unchanged, since that's the part our code owns.
 
-    Plain `def`, not `async def`: process_job_task calls asyncio.run()
-    internally, which raises if it's invoked from inside a running loop --
-    exactly the loop pytest-asyncio would otherwise wrap this test in.
+    Plain `def`, not `async def`: process_job_task drives its own persistent
+    event loop (one per forked worker process, reused across tasks -- see
+    `_get_worker_loop`) via `run_until_complete`, so this must not run inside
+    the loop pytest-asyncio would otherwise wrap an `async def` test in.
     """
     failing = AsyncMock(side_effect=RuntimeError("retry me"))
     monkeypatch.setattr(tasks, "process_job", failing)

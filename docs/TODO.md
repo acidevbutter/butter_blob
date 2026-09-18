@@ -108,7 +108,7 @@ Ordered by prompt. Tick a box when it's done **and** its acceptance passes
 - [x] `app/worker/*` + `app/core/jobs.py` (enqueue on `stored`)
 - [x] handlers: `virus_scan` (clamd), `image_thumbnail` (Pillow sidecars), `video_transcode` (stub)
 - [x] `status=processing`, `blob_events` `processing`/`processed`/`quarantined` + migration
-- [x] `worker` + `elasticmq` compose services
+- [x] `worker` + `redis` compose services (Celery broker/backend; ElasticMQ/SQS foi removido)
 - [x] **Acceptance:** `test_worker` (enqueue, thumbnail sidecars, quarantine, retry-on-failure, no-op when unconfigured)
 
 ## 14 — `devbutter_backend` client — Status: ✅ done · Codex · edits `../devbutter_backend`

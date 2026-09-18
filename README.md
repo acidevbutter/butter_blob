@@ -103,7 +103,11 @@ docker compose up --build
 ```
 
 The entrypoint runs `alembic upgrade head` before Uvicorn. Open
-<http://localhost:8003/docs>.
+<http://localhost:8003/docs>. This also starts `worker` (Celery, consumes
+`blob-jobs` from Redis): any blob that needs post-processing (images, when
+`THUMBNAIL_WIDTHS` is set, or anything at all once `CLAMAV_HOST` is set) stays
+at `status=processing` — and its `/v1/public/*` URL 404s — until a worker
+consumes that job, so `api` alone isn't enough.
 
 ### 5. Run the automated tests
 
