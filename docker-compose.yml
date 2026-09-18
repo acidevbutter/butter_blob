@@ -18,8 +18,8 @@ services:
       AWS_ACCESS_KEY_ID: minioadmin
       AWS_SECRET_ACCESS_KEY: minioadmin
     volumes:
-      - ./app:/srv/app
-      - ./alembic:/srv/alembic
+      - ./app:/app/app
+      - ./alembic:/app/alembic
     networks:
       default:
       devbutter_shared:
@@ -29,13 +29,12 @@ services:
       watch:
         - path: ./app
           action: sync+restart
-          target: /srv/app
+          target: /app/app
         - path: ./alembic
           action: sync+restart
-          target: /srv/alembic
+          target: /app/alembic
 
   worker:
-    profiles: ["jobs"]
     build:
       context: .
       dockerfile: docker/Dockerfile.worker
@@ -49,11 +48,19 @@ services:
       AWS_ACCESS_KEY_ID: minioadmin
       AWS_SECRET_ACCESS_KEY: minioadmin
     volumes:
-      - ./app:/srv/app
-      - ./alembic:/srv/alembic
+      - ./app:/app/app
+      - ./alembic:/app/alembic
     networks:
       default:
       devbutter_shared:
+    develop:
+      watch:
+        - path: ./app
+          action: sync+restart
+          target: /app/app
+        - path: ./alembic
+          action: sync+restart
+          target: /app/alembic
 
   # Local Redis, standing in for the same Redis instance that fronts prod/
   # staging on Coolify -- the worker's Celery client code is identical

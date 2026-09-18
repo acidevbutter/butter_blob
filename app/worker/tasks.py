@@ -32,6 +32,24 @@ logger = logging.getLogger(__name__)
 
 MAX_RETRIES = 5
 
+_worker_loop: asyncio.AbstractEventLoop | None = None
+
+
+def _get_worker_loop() -> asyncio.AbstractEventLoop:
+    """One event loop per forked worker process, reused across tasks.
+
+    ``session_factory``'s asyncpg connections are bound to the loop they were
+    opened on; calling ``asyncio.run`` per task tears the loop down each time,
+    so a pooled connection reused on the next task's new loop raises
+    "attached to a different loop". Celery's prefork model gives each child
+    process a single task at a time, so one persistent loop per process is
+    safe here.
+    """
+    global _worker_loop
+    if _worker_loop is None or _worker_loop.is_closed():
+        _worker_loop = asyncio.new_event_loop()
+    return _worker_loop
+
 
 def _clamd_scan(host: str, port: int, data: bytes) -> str | None:
     """Return a ClamAV signature when infected, otherwise None."""
@@ -175,4 +193,4 @@ def process_job_task(
     BlobStatus.STORED (no thumbnail/virus-scan event recorded), which is
     visible via the blob's own status/events rather than a separate queue.
     """
-    asyncio.run(process_job(blob_id, namespace, kinds))
+    _get_worker_loop().run_until_complete(process_job(blob_id, namespace, kinds))
