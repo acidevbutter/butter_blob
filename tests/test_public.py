@@ -45,7 +45,10 @@ async def test_public_blob_redirects_without_auth_and_emits_metric(
     assert response.headers["location"].startswith("https://fake-s3.local/")
     assert "method=GET" in response.headers["location"]
     assert "expires=300" in response.headers["location"]
-    assert response.headers["cache-control"] == "public, max-age=86400"
+    # Matches the presigned URL's own expiry (min(300, S3_PRESIGN_EXPIRES_SECONDS)) --
+    # caching the redirect longer than the signature it points to would leave
+    # clients replaying an expired-signature link once the URL expires.
+    assert response.headers["cache-control"] == "public, max-age=300"
     assert emitted == [("PublicBlobServed", internal_headers["X-Blob-Namespace"], {})]
 
 
@@ -104,7 +107,9 @@ async def test_public_metadata_has_only_public_fields(client, internal_headers):
         "created_at",
         "expires_at",
     }
-    assert response.headers["cache-control"] == "public, max-age=86400"
+    # No CDN configured (default in tests) -- same short-lived cache window as
+    # the redirect route, since both share PublicService.cache_control().
+    assert response.headers["cache-control"] == "public, max-age=300"
 
 
 async def test_permanent_public_blob_uses_cdn_and_temporary_blob_does_not(

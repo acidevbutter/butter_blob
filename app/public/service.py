@@ -55,7 +55,15 @@ class PublicService:
 
     async def cache_control(self, namespace: str, public_slug: str) -> str:
         blob = await self.resolve(namespace, public_slug)
-        return "no-store" if blob.is_temporary else "public, max-age=86400"
+        if blob.is_temporary:
+            return "no-store"
+        if settings.public_cdn_base_url:
+            # The CDN URL is stable -- same branch redirect_url() takes.
+            return "public, max-age=86400"
+        # No CDN (local dev): the redirect target is a short-lived presigned
+        # URL, so caching the redirect itself past that point would leave
+        # clients replaying an expired-signature link -- a broken image.
+        return f"public, max-age={min(300, settings.s3_presign_expires_seconds)}"
 
     async def meta(self, namespace: str, public_slug: str) -> PublicMeta:
         return PublicMeta.model_validate(await self.resolve(namespace, public_slug))
