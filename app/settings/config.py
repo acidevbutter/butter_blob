@@ -40,6 +40,10 @@ class Settings(BaseSettings):
     aws_region: str = "us-east-1"
     s3_bucket: str = ""
     s3_endpoint_url: str | None = None
+    # Presigned URLs are handed to browsers, which can't resolve the Docker-internal
+    # host in S3_ENDPOINT_URL (e.g. "minio"). Development-only, like S3_ENDPOINT_URL
+    # itself; falls back to it when unset so behavior outside development is unchanged.
+    s3_public_endpoint_url: str | None = None
     s3_force_path_style: bool | None = None
     s3_presign_expires_seconds: int = 900
 
@@ -98,6 +102,11 @@ class Settings(BaseSettings):
             raise ValueError(
                 "S3_ENDPOINT_URL is only supported in development; use AWS S3 directly "
                 "outside development"
+            )
+        if self.environment != "development" and self.s3_public_endpoint_url:
+            raise ValueError(
+                "S3_PUBLIC_ENDPOINT_URL is only supported in development; use AWS S3 "
+                "directly outside development"
             )
 
         if not self.s3_bucket:

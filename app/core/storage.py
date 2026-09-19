@@ -45,14 +45,27 @@ class BlobStorage:
     def __init__(self, *, bucket: str | None = None) -> None:
         self.bucket = bucket or settings.s3_bucket
         addressing = "path" if settings.s3_force_path_style else "auto"
+        client_config = Config(signature_version="s3v4", s3={"addressing_style": addressing})
         self._client: Any = boto3.client(
             "s3",
             region_name=settings.aws_region,
             endpoint_url=settings.s3_endpoint_url or None,
-            config=Config(
-                signature_version="s3v4",
-                s3={"addressing_style": addressing},
-            ),
+            config=client_config,
+        )
+        # Presigned URLs go to browsers, which can't resolve the Docker-internal
+        # host in S3_ENDPOINT_URL -- sign those against S3_PUBLIC_ENDPOINT_URL
+        # instead when it's set. Everything else (put/get/head/delete) keeps
+        # using the internal endpoint via self._client.
+        public_endpoint_url = settings.s3_public_endpoint_url or settings.s3_endpoint_url
+        self._presign_client: Any = (
+            self._client
+            if public_endpoint_url == (settings.s3_endpoint_url or None)
+            else boto3.client(
+                "s3",
+                region_name=settings.aws_region,
+                endpoint_url=public_endpoint_url,
+                config=client_config,
+            )
         )
 
     async def _run(self, operation: str, func: Any, *args: Any, **kwargs: Any) -> Any:
@@ -107,7 +120,7 @@ class BlobStorage:
     ) -> str:
         url: str = await self._run(
             "generate_presigned_url",
-            self._client.generate_presigned_url,
+            self._presign_client.generate_presigned_url,
             "put_object",
             Params={"Bucket": self.bucket, "Key": key, "ContentType": content_type},
             ExpiresIn=expires,
@@ -130,7 +143,7 @@ class BlobStorage:
             params["ResponseContentDisposition"] = value
         url: str = await self._run(
             "generate_presigned_url",
-            self._client.generate_presigned_url,
+            self._presign_client.generate_presigned_url,
             "get_object",
             Params=params,
             ExpiresIn=expires,

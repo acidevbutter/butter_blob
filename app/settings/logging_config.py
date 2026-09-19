@@ -1,51 +1,7 @@
-import json
 import logging.config
-from datetime import UTC, datetime
-from typing import Any
-
-# Attributes every stdlib LogRecord carries. Anything else on the record (i.e.
-# anything passed via `extra={...}` on a logging call, such as `event`,
-# `request_id`, `route`, `status_code`, `duration_ms`) is application context
-# and gets merged into the JSON payload as-is.
-_RESERVED_RECORD_KEYS = set(logging.LogRecord("", 0, "", 0, "", (), None).__dict__.keys()) | {
-    "message",
-    "asctime",
-}
-
-
-class JsonFormatter(logging.Formatter):
-    """Renders each log record as one JSON object per line.
-
-    `message` is the human-readable text; call sites that want a
-    machine-readable event name pass `extra={"event": "...", ...}` (matching
-    the convention already used by `app.core.decorators.log_call`) and those
-    fields are merged verbatim into the JSON object. Never pass file
-    contents, presigned URLs, tokens, or other secrets via `extra` or the
-    message itself.
-    """
-
-    def format(self, record: logging.LogRecord) -> str:
-        if record.name == "metrics":
-            # app.core.metrics.emit_metrics already renders a flat, complete
-            # JSON payload for New Relic ingestion -- wrapping it as this
-            # formatter's own "message" string would nest it inside another
-            # JSON object, hiding every metric field from New Relic's
-            # top-level-key auto-parsing.
-            return record.getMessage()
-        payload: dict[str, Any] = {
-            "timestamp": datetime.fromtimestamp(record.created, tz=UTC).isoformat(),
-            "level": record.levelname,
-            "logger": record.name,
-            "message": record.getMessage(),
-        }
-        for key, value in record.__dict__.items():
-            if key not in _RESERVED_RECORD_KEYS:
-                payload[key] = value
-        if record.exc_info:
-            payload["exc_info"] = self.formatException(record.exc_info)
-        if record.stack_info:
-            payload["stack_info"] = self.formatStack(record.stack_info)
-        return json.dumps(payload, default=str)
+from app.core.metrics import SERVICE_NAME
+from app.settings.config import settings
+from app.settings.terminal_logging import ServiceContextFilter, TerminalFormatter
 
 
 def setup_logging(level: str = "INFO") -> None:
@@ -54,11 +10,12 @@ def setup_logging(level: str = "INFO") -> None:
             "version": 1,
             "disable_existing_loggers": False,
             "formatters": {
-                "json": {"()": f"{__name__}.JsonFormatter"},
+                "terminal": {"()": TerminalFormatter},
             },
             "handlers": {
-                "console": {"class": "logging.StreamHandler", "formatter": "json"},
+                "console": {"class": "logging.StreamHandler", "formatter": "terminal", "filters": ["service_context"]},
             },
+            "filters": {"service_context": {"()": ServiceContextFilter, "service_name": SERVICE_NAME, "environment": settings.environment}},
             "root": {"handlers": ["console"], "level": level},
             "loggers": {
                 "sqlalchemy.engine": {"level": "WARNING", "propagate": True},

@@ -11,9 +11,7 @@ partition -- no agent-side SDK, no new dependency.
 
 from __future__ import annotations
 
-import json
 import logging
-import time
 from collections.abc import Mapping, Sequence
 
 from starlette.requests import Request
@@ -54,16 +52,16 @@ async def emit_metrics(
     """Write one metric log line without allowing telemetry failures to affect work."""
     try:
         payload: dict[str, object] = {
-            "timestamp": int(time.time() * 1000),
-            "message": "metric_emitted",
-            "service.name": SERVICE_NAME,
+            "event": "metric_emitted",
+            "log_type": "metric",
+            "service": SERVICE_NAME,
             "environment": settings.environment,
-            "metric.namespace": NAMESPACE,
+            "metric_namespace": NAMESPACE,
             **(dimensions or {}),
         }
         for name, value, unit in metrics:
             payload[name] = value
-            payload[f"{name}.unit"] = unit
-        _metrics_logger.info(json.dumps(payload, default=str))
+            payload[f"{name}_unit"] = unit
+        _metrics_logger.info("metric emitted", extra=payload)
     except Exception:
         logger.exception("failed to emit metrics")
