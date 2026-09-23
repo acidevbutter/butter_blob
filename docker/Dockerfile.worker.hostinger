@@ -22,8 +22,6 @@ RUN groupadd --system --gid 10001 app \
 COPY --chown=app:app app ./app
 COPY --chown=app:app alembic ./alembic
 COPY --chown=app:app alembic.ini ./
-COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
-RUN chmod +x /usr/local/bin/docker-entrypoint.sh
 
 USER app
 
