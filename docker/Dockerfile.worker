@@ -29,5 +29,4 @@ USER app
 
 # docker-entrypoint.sh runs `alembic upgrade head` then exec's "$@" -- both the
 # production CMD and the compose dev override arrive as "$@".
-ENTRYPOINT ["docker-entrypoint.sh"]
 CMD ["celery", "-A", "app.worker.celery_app:celery_app", "worker", "--loglevel=info"]
