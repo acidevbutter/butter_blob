@@ -19,6 +19,8 @@ class Settings(BaseSettings):
     environment: Literal["development", "staging", "preprod", "production"] = "development"
     debug: bool = False
     log_level: str = "INFO"
+    otel_enabled: bool = False
+    otel_service_name: str = "butter-blob"
 
     database_host: str = "shared-postgres"
     database_port: int = 5432
@@ -101,9 +103,7 @@ class Settings(BaseSettings):
             )
 
         if not self.s3_bucket:
-            self.s3_bucket = _S3_BUCKET_BY_ENVIRONMENT.get(
-                self.environment, "devbutter-blob-local"
-            )
+            self.s3_bucket = _S3_BUCKET_BY_ENVIRONMENT.get(self.environment, "devbutter-blob-local")
         if self.s3_force_path_style is None:
             self.s3_force_path_style = self.environment == "development"
         return self

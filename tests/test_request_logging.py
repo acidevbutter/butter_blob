@@ -1,9 +1,8 @@
-import json
 import logging
 
 import pytest
 
-from app.settings.logging_config import JsonFormatter
+from app.settings.terminal_logging import ServiceContextFilter, TerminalFormatter
 
 
 async def test_successful_request_emits_exactly_one_completion_event(client, caplog):
@@ -81,7 +80,7 @@ async def test_unhandled_exception_logs_exactly_one_failure_event_with_traceback
     assert "kaboom" not in record.getMessage()
 
 
-def test_json_formatter_renders_one_json_object_with_expected_fields():
+def test_terminal_formatter_renders_readable_structured_fields():
     logger_name = "app.request"
     record = logging.LogRecord(
         name=logger_name,
@@ -93,52 +92,50 @@ def test_json_formatter_renders_one_json_object_with_expected_fields():
         exc_info=None,
     )
     record.event = "request_completed"
-    record.service = "butter-blob"
-    record.environment = "development"
+    ServiceContextFilter("butter-blob", "development").filter(record)
     record.request_id = "abc-123"
     record.method = "GET"
     record.route = "/health"
     record.status_code = 200
     record.duration_ms = 1.2
 
-    line = JsonFormatter().format(record)
-    payload = json.loads(line)
+    line = TerminalFormatter().format(record)
 
-    assert payload["level"] == "INFO"
-    assert payload["logger"] == logger_name
-    assert payload["message"] == "request completed"
-    assert payload["event"] == "request_completed"
-    assert payload["service"] == "butter-blob"
-    assert payload["environment"] == "development"
-    assert payload["request_id"] == "abc-123"
-    assert payload["method"] == "GET"
-    assert payload["route"] == "/health"
-    assert payload["status_code"] == 200
-    assert payload["duration_ms"] == 1.2
-    assert "timestamp" in payload
+    assert "log.severity=INFO" in line
+    assert f"logger={logger_name}" in line
+    assert 'message="request completed"' in line
+    assert "event.name=request_completed" in line
+    assert "service.name=butter-blob" in line
+    assert "deployment.environment=development" in line
+    assert "request.id=abc-123" in line
+    assert "http.request.method=GET" in line
+    assert "url.path=/health" in line
+    assert "http.response.status_code=200" in line
+    assert "duration_ms=1.2" in line
+    assert line.startswith("timestamp=")
 
 
-def test_json_formatter_passes_metrics_payloads_through_unwrapped():
-    """app.core.metrics.emit_metrics logs an already-complete, flat JSON
-    payload to the "metrics" logger. This formatter must not re-wrap it
-    inside its own envelope, or every metric field ends up hidden as an
-    escaped string inside "message" and New Relic's top-level-key
-    auto-parsing can't see route/status/duration.
-    """
-    metric_payload = {"timestamp": 1234, "message": "metric_emitted", "Route": "/health"}
+def test_terminal_formatter_keeps_metric_fields_readable():
     record = logging.LogRecord(
         name="metrics",
         level=logging.INFO,
         pathname=__file__,
         lineno=1,
-        msg=json.dumps(metric_payload),
+        msg="metric emitted",
         args=(),
         exc_info=None,
     )
 
-    formatted = JsonFormatter().format(record)
+    record.event = "metric_emitted"
+    record.log_type = "metric"
+    record.Route = "/health"
+    ServiceContextFilter("butter-blob", "development").filter(record)
 
-    assert json.loads(formatted) == metric_payload
+    formatted = TerminalFormatter().format(record)
+
+    assert 'message="metric emitted"' in formatted
+    assert "log.type=metric" in formatted
+    assert "Route=/health" in formatted
 
 
 def test_uvicorn_access_logger_is_quiet_and_does_not_propagate():

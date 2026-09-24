@@ -25,7 +25,7 @@ is the one service that stores and serves files (**blobs**) for all of them.
 - Temporary blobs: a `ttl_seconds` on upload makes the blob auto-expire; expired
   reads return `410`; a maintenance endpoint reclaims the storage.
 - Audit: every state change is recorded in `blob_events`.
-- Structured JSON metric logs (New Relic-ingested): request-level + file-level.
+- OpenTelemetry APM direto ao New Relic, com eventos de negócio em logfmt no stdout.
 
 **Phase 2 (prompts 12–16), previously "out of scope", now planned:**
 
@@ -68,13 +68,13 @@ flowchart LR
         SVC --> REPO["repository (async SQLAlchemy 2.0)"]
         SVC --> STORE["core/storage.py — boto3 S3"]
         SVC --> IMG["core/imaging.py — Pillow compress/resize"]
-        SVC --> OBS["core/observability.py → core/metrics.py (JSON logs)"]
+        SVC --> OBS["core/telemetry.py (OTLP) + core/metrics.py (logfmt)"]
     end
 
     REPO --> PG[("shared-postgres / blob DB<br/>namespaces · blobs · blob_events")]
     STORE -->|"put · head · delete · presign"| S3[("S3 / MinIO :9000<br/>blobs/&lt;ns&gt;/&lt;id&gt;/… · tmp/&lt;ns&gt;/&lt;id&gt;/…")]
     BROWSER -.->|"302 → presigned GET"| S3
-    OBS -.->|"stdout → nrdot-collector"| NR["New Relic Log_metric<br/>DevButter/ButterBlob"]
+    OBS -.->|"OTLP/HTTP direto + stdout → nrdot"| NR["New Relic<br/>butter-blob"]
 ```
 
 ### 3.2 Proxy upload — limit enforcement + image compression
@@ -476,17 +476,18 @@ MinIO URLs. Terraform for the edge lives in `../infra/terraform/staging/cdn_blob
 
 ---
 
-## 9. Metrics catalogue — structured JSON logs
+## 9. Metrics catalogue — OpenTelemetry + structured stdout
 
-Namespace `DevButter/ButterBlob`, service `butter-blob` (both hardcoded constants
-in `core/metrics.py`). Each metric emission is a single JSON line written via the
-standard `logging` module to the `metrics` logger; the host's New Relic
-OpenTelemetry collector classifies stdout by its `message` field and routes
-metric events to the `Log_metric` partition (see
-`/etc/nrdot-collector/docker-stats-config.yaml` on the VPS). `configure_metrics()`
-is a no-op retained only as an application-lifecycle extension point. Every
-emission carries coarse dimensions `{Environment, Service}` plus the per-call
-dimensions below. Telemetry failures never affect a request.
+O serviço `butter-blob` envia traces e métricas APM diretamente ao endpoint
+OTLP/HTTP configurado. O namespace de eventos de negócio `DevButter/ButterBlob`
+continua em `core/metrics.py`: cada emissão vira uma linha logfmt legível no
+stdout, que o `nrdot-collector` do host encaminha como log ao New Relic.
+`app.core.telemetry` opta pela convenção HTTP estável (`http`) antes da
+instrumentação; o histograma `http.server.request.duration` inclui método,
+rota (`http.route`) e status, que o New Relic usa para derivar as métricas APM.
+`configure_metrics()` permanece como extensão de ciclo de vida sem efeito. Cada
+emissão carrega dimensões grossas `{Environment, Service}` e as dimensões abaixo;
+falhas de telemetria nunca afetam uma requisição.
 
 ### 9.1 Request-level (`RequestContextMiddleware`)
 | Metric | Unit | Dimensions |
