@@ -14,8 +14,8 @@ local dev).
   auto-expire; expired reads return `410` and a purge job reclaims the space.
 - **Audited** — every create / upload / update / download / delete is recorded in
   `blob_events`.
-- **Observed** — request-level and file-level structured JSON metric logs
-  (`DevButter/ButterBlob`), ingested by New Relic.
+- **Observed** — APM traces/metrics via OTLP/HTTP direto ao New Relic e eventos
+  operacionais em logfmt legível no stdout (`DevButter/ButterBlob`).
 
 > **Status:** foundation only (prompts 00–03). Settings, logging, middleware,
 > `core/` (decorators, exceptions, metrics, storage), the async DB layer and
@@ -40,7 +40,7 @@ sequences, blob lifecycle, and the data model.
 | Objects | S3 / MinIO via boto3 (behind `app/core/storage.py`) |
 | Schemas | Pydantic v2 |
 | Images | Pillow |
-| Metrics | Structured JSON metric logs (stdlib `logging`), ingested by New Relic |
+| Telemetria | OpenTelemetry OTLP/HTTP + eventos logfmt no stdout |
 | Packaging | Poetry |
 | Lint / types | Ruff, mypy (strict) |
 | Tests | pytest + httpx `ASGITransport` + in-memory storage fake |

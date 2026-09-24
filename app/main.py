@@ -10,6 +10,7 @@ from app.core.dependencies import DbSession
 from app.core.exceptions import register_exception_handlers
 from app.core.metrics import configure_metrics, emit_metrics
 from app.core.storage import BlobStorageDep
+from app.core.telemetry import configure_telemetry
 from app.maintenance.router import router as maintenance_router
 from app.namespaces.router import router as namespaces_router
 from app.public.router import router as public_router
@@ -24,6 +25,7 @@ app = FastAPI(
     title="Butter Blob",
     description="DevButter company-wide blob store: S3-backed file storage and serving.",
 )
+configure_telemetry(app)
 register_middleware(app)
 register_exception_handlers(app)
 

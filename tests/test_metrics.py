@@ -1,4 +1,3 @@
-import json
 import logging
 
 from app.core import metrics
@@ -26,7 +25,7 @@ def test_configure_metrics_is_callable_without_side_effects() -> None:
     metrics.configure_metrics()
 
 
-async def test_emit_metrics_writes_one_json_line(caplog) -> None:
+async def test_emit_metrics_writes_one_structured_event(caplog) -> None:
     with caplog.at_level(logging.INFO, logger="metrics"):
         await metrics.emit_metrics(
             [("RequestCount", 1, "Count")],
@@ -34,16 +33,16 @@ async def test_emit_metrics_writes_one_json_line(caplog) -> None:
         )
 
     assert len(caplog.records) == 1
-    payload = json.loads(caplog.records[0].message)
-    assert payload["message"] == "metric_emitted"
-    assert payload["service.name"] == metrics.SERVICE_NAME
-    assert payload["metric.namespace"] == metrics.NAMESPACE
+    payload = vars(caplog.records[0])
+    assert payload["event"] == "metric_emitted"
+    assert payload["service"] == metrics.SERVICE_NAME
+    assert payload["metric_namespace"] == metrics.NAMESPACE
     assert payload["environment"] == "development"
     assert payload["Method"] == "GET"
     assert payload["Route"] == "/orders/{order_id}"
     assert payload["StatusClass"] == "2xx"
     assert payload["RequestCount"] == 1
-    assert payload["RequestCount.unit"] == "Count"
+    assert payload["RequestCount_unit"] == "Count"
 
 
 async def test_emit_metrics_without_dimensions(caplog) -> None:
@@ -51,9 +50,9 @@ async def test_emit_metrics_without_dimensions(caplog) -> None:
         await metrics.emit_metrics([("HealthCheckFailure", 1, "Count")])
 
     assert len(caplog.records) == 1
-    payload = json.loads(caplog.records[0].message)
+    payload = vars(caplog.records[0])
     assert payload["HealthCheckFailure"] == 1
-    assert payload["HealthCheckFailure.unit"] == "Count"
+    assert payload["HealthCheckFailure_unit"] == "Count"
 
 
 async def test_emit_metrics_failure_does_not_raise(monkeypatch, caplog) -> None:
@@ -75,7 +74,7 @@ async def test_request_emits_one_metrics_event_without_breaking_response(client,
     assert response.status_code == 200
     metric_records = [r for r in caplog.records if r.name == "metrics"]
     assert len(metric_records) == 1
-    payload = json.loads(metric_records[0].message)
+    payload = vars(metric_records[0])
     assert payload["Route"] == "/health"
     assert payload["RequestCount"] == 1
 
