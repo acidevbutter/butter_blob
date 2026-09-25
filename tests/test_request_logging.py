@@ -5,23 +5,13 @@ import pytest
 from app.settings.terminal_logging import ServiceContextFilter, TerminalFormatter
 
 
-async def test_successful_request_emits_exactly_one_completion_event(client, caplog):
+async def test_health_probe_does_not_emit_a_completion_event(client, caplog):
     with caplog.at_level(logging.INFO, logger="app.request"):
         response = await client.get("/health")
 
     assert response.status_code == 200
     request_records = [r for r in caplog.records if r.name == "app.request"]
-    assert len(request_records) == 1
-
-    record = request_records[0]
-    assert record.event == "request_completed"
-    assert record.method == "GET"
-    assert record.route == "/health"
-    assert record.status_code == 200
-    assert isinstance(record.duration_ms, float)
-    assert record.request_id
-    assert record.service == "butter-blob"
-    assert record.environment == "development"
+    assert request_records == []
 
 
 async def test_404_request_logs_raw_path_not_a_route_template(client, caplog):
@@ -101,18 +91,9 @@ def test_terminal_formatter_renders_readable_structured_fields():
 
     line = TerminalFormatter().format(record)
 
-    assert "log.severity=INFO" in line
-    assert f"logger={logger_name}" in line
-    assert 'message="request completed"' in line
-    assert "event.name=request_completed" in line
-    assert "service.name=butter-blob" in line
-    assert "deployment.environment=development" in line
-    assert "request.id=abc-123" in line
-    assert "http.request.method=GET" in line
-    assert "url.path=/health" in line
-    assert "http.response.status_code=200" in line
-    assert "duration_ms=1.2" in line
-    assert line.startswith("timestamp=")
+    assert "[butter-blob/development]" in line
+    assert "request_completed: request completed" in line
+    assert "GET /health | → 200 | 1.2ms | request_id=abc-123" in line
 
 
 def test_terminal_formatter_keeps_metric_fields_readable():
@@ -133,9 +114,8 @@ def test_terminal_formatter_keeps_metric_fields_readable():
 
     formatted = TerminalFormatter().format(record)
 
-    assert 'message="metric emitted"' in formatted
-    assert "log.type=metric" in formatted
-    assert "Route=/health" in formatted
+    assert "[butter-blob/development]" in formatted
+    assert "metric_emitted: metric emitted" in formatted
 
 
 def test_uvicorn_access_logger_is_quiet_and_does_not_propagate():

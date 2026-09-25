@@ -67,16 +67,13 @@ async def test_emit_metrics_failure_does_not_raise(monkeypatch, caplog) -> None:
     assert "failed to emit metrics" in caplog.text
 
 
-async def test_request_emits_one_metrics_event_without_breaking_response(client, caplog) -> None:
+async def test_health_probe_does_not_emit_request_metrics(client, caplog) -> None:
     with caplog.at_level(logging.INFO, logger="metrics"):
         response = await client.get("/health")
 
     assert response.status_code == 200
     metric_records = [r for r in caplog.records if r.name == "metrics"]
-    assert len(metric_records) == 1
-    payload = vars(metric_records[0])
-    assert payload["Route"] == "/health"
-    assert payload["RequestCount"] == 1
+    assert metric_records == []
 
 
 async def test_metrics_failure_does_not_break_response(client, monkeypatch) -> None:
