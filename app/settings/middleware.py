@@ -12,6 +12,7 @@ from app.core.metrics import SERVICE_NAME, emit_metrics, route_template, status_
 from app.settings.config import settings
 
 logger = logging.getLogger("app.request")
+_PROBE_PATHS = frozenset({"/health", "/health/ready"})
 
 
 def _log_route(request: Request) -> str:
@@ -56,6 +57,8 @@ class RequestContextMiddleware(BaseHTTPMiddleware):
             raise
         duration_ms = (time.perf_counter() - start) * 1000
         response.headers["X-Request-ID"] = request_id
+        if request.url.path in _PROBE_PATHS:
+            return response
         logger.info(
             "request completed",
             extra={
