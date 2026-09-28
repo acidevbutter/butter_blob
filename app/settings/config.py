@@ -42,6 +42,14 @@ class Settings(BaseSettings):
     aws_region: str = "us-east-1"
     s3_bucket: str = ""
     s3_endpoint_url: str | None = None
+    # Browser-reachable equivalent of s3_endpoint_url, e.g. http://localhost:9010.
+    # boto3 bakes whatever endpoint_url the client was built with into every
+    # presigned URL it signs, so in development the internal Docker Compose
+    # hostname (s3_endpoint_url=http://minio:9000) would otherwise leak straight
+    # into URLs handed to a real browser. When set, BlobStorage rewrites a
+    # presigned URL's host from s3_endpoint_url to this value before returning
+    # it. Development-only, like s3_endpoint_url itself.
+    s3_public_endpoint_url: str | None = None
     s3_force_path_style: bool | None = None
     s3_presign_expires_seconds: int = 900
 
@@ -100,6 +108,11 @@ class Settings(BaseSettings):
             raise ValueError(
                 "S3_ENDPOINT_URL is only supported in development; use AWS S3 directly "
                 "outside development"
+            )
+        if self.environment != "development" and self.s3_public_endpoint_url:
+            raise ValueError(
+                "S3_PUBLIC_ENDPOINT_URL is only supported in development; real S3 "
+                "presigned URLs are already browser-reachable outside development"
             )
 
         if not self.s3_bucket:
