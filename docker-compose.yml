@@ -11,6 +11,8 @@ services:
     environment:
       # Docker DNS + boto3. DATABASE_* come from env_file.
       S3_ENDPOINT_URL: http://minio:9000
+      # Browser-reachable equivalent of the above -- see settings.s3_public_endpoint_url.
+      S3_PUBLIC_ENDPOINT_URL: http://localhost:${MINIO_API_HOST_PORT:-9010}
       S3_FORCE_PATH_STYLE: "true"
       # MinIO doesn't verify these against IAM, but boto3 refuses to sign a
       # request with no credentials at all. On real AWS the ECS task role
