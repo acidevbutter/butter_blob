@@ -37,11 +37,12 @@ class Settings(BaseSettings):
     session_cookie_name: str = "butter_blob_admin"
 
     # Object storage. Production-like environments select their AWS bucket from
-    # ENVIRONMENT unless S3_BUCKET explicitly overrides it. S3_ENDPOINT_URL is
-    # development-only (MinIO).
+    # ENVIRONMENT unless S3_BUCKET explicitly overrides it. An external endpoint
+    # is opt-in outside development for temporary S3-compatible providers.
     aws_region: str = "us-east-1"
     s3_bucket: str = ""
     s3_endpoint_url: str | None = None
+    allow_s3_endpoint_outside_development: bool = False
     # Browser-reachable equivalent of s3_endpoint_url, e.g. http://localhost:9010.
     # boto3 bakes whatever endpoint_url the client was built with into every
     # presigned URL it signs, so in development the internal Docker Compose
@@ -104,10 +105,14 @@ class Settings(BaseSettings):
                 "DATABASE_URL is no longer read; set DATABASE_HOST, DATABASE_PORT, "
                 "DATABASE_USER, DATABASE_PASSWORD and DATABASE_NAME"
             )
-        if self.environment != "development" and self.s3_endpoint_url:
+        if (
+            self.environment != "development"
+            and self.s3_endpoint_url
+            and not self.allow_s3_endpoint_outside_development
+        ):
             raise ValueError(
-                "S3_ENDPOINT_URL is only supported in development; use AWS S3 directly "
-                "outside development"
+                "S3_ENDPOINT_URL outside development requires "
+                "ALLOW_S3_ENDPOINT_OUTSIDE_DEVELOPMENT=true"
             )
         if self.environment != "development" and self.s3_public_endpoint_url:
             raise ValueError(

@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Adicionada a flag `ALLOW_S3_ENDPOINT_OUTSIDE_DEVELOPMENT=false` por padrão.
+  Quando definida como `true`, permite configurar `S3_ENDPOINT_URL` em preprod
+  ou produção para um provedor S3-compatível, como o Cloudflare R2.
+
 - Probes de saúde não geram mais logs ou métricas de requisição. O terminal
   passa a exibir uma linha curta por evento, enquanto o handler OTLP envia os
   atributos estruturados diretamente ao New Relic quando há endpoint configurado.
