@@ -46,10 +46,28 @@ def test_selects_aws_bucket_for_deployed_environment(
     assert settings.s3_force_path_style is False
 
 
-def test_rejects_minio_endpoint_outside_development() -> None:
-    with pytest.raises(ValidationError, match="S3_ENDPOINT_URL is only supported"):
+def test_rejects_s3_endpoint_outside_development_without_explicit_opt_in() -> None:
+    with pytest.raises(ValidationError, match="ALLOW_S3_ENDPOINT_OUTSIDE_DEVELOPMENT"):
         Settings(
             _env_file=None,
             environment="preprod",
             s3_endpoint_url="http://minio:9000",
         )
+
+
+@pytest.mark.parametrize("environment", ["preprod", "production"])
+def test_allows_s3_endpoint_outside_development_with_explicit_opt_in(
+    environment: str,
+) -> None:
+    settings = Settings(
+        _env_file=None,
+        environment=environment,
+        s3_endpoint_url="https://account.r2.cloudflarestorage.com",
+        allow_s3_endpoint_outside_development=True,
+        session_secret="real-secret",
+        database_password="real-password",
+        service_api_key="key",
+        admin_api_key="key",
+    )
+
+    assert settings.s3_endpoint_url == "https://account.r2.cloudflarestorage.com"

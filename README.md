@@ -137,7 +137,8 @@ scripts/curl_smoke_test.sh        # (added in prompt 11)
 | `SESSION_COOKIE_NAME` | `butter_blob_admin` | admin dashboard cookie name |
 | `AWS_REGION` | `us-east-1` | |
 | `S3_BUCKET` | environment-selected | `devbutter-staging-blob` in preprod and `devbutter-prod-blob` in production; an explicit value overrides this. |
-| `S3_ENDPOINT_URL` | `http://minio:9000` locally | unset outside development; MinIO endpoints are rejected there. |
+| `S3_ENDPOINT_URL` | `http://minio:9000` locally | unset outside development unless `ALLOW_S3_ENDPOINT_OUTSIDE_DEVELOPMENT=true`; use it for an explicit S3-compatible endpoint such as Cloudflare R2. |
+| `ALLOW_S3_ENDPOINT_OUTSIDE_DEVELOPMENT` | `false` | explicit production/preprod opt-in for `S3_ENDPOINT_URL`; keep `false` for direct AWS S3. |
 | `S3_FORCE_PATH_STYLE` | `true` locally | automatically `false` outside development. |
 | `S3_PRESIGN_EXPIRES_SECONDS` | `900` | ceiling for presigned URL lifetimes |
 | `REDIS_URL` | — | Celery broker/result backend for async post-processing; empty disables the worker |
