@@ -2,6 +2,8 @@
 same cross-domain guards the real /internal and /admin trees use.
 """
 
+import logging
+
 from fastapi import APIRouter
 
 from app.core.dependencies import CallerNamespace, RequireAdminApiKey, RequireServiceApiKey
@@ -29,12 +31,14 @@ async def test_internal_without_service_key_is_404(client):
     assert response.status_code == 404
 
 
-async def test_internal_with_wrong_service_key_is_404(client):
-    response = await client.get(
-        "/_probe/internal",
-        headers={"X-Service-Api-Key": "nope", "X-Blob-Namespace": "acme"},
-    )
+async def test_internal_with_wrong_service_key_is_404(client, caplog):
+    with caplog.at_level(logging.WARNING, logger="app.core.dependencies"):
+        response = await client.get(
+            "/_probe/internal",
+            headers={"X-Service-Api-Key": "nope", "X-Blob-Namespace": "acme"},
+        )
     assert response.status_code == 404
+    assert [r.__dict__.get("reason") for r in caplog.records] == ["service_api_key"]
 
 
 async def test_internal_without_namespace_header_is_422(client, internal_headers):

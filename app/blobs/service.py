@@ -5,7 +5,6 @@ import logging
 import os
 import re
 import secrets
-import time
 from builtins import list as builtins_list
 from datetime import UTC, datetime, timedelta
 from typing import Any
@@ -30,7 +29,6 @@ from app.core.exceptions import (
     ValidationFailedError,
 )
 from app.core.jobs import enqueue
-from app.core.observability import emit_blob_metric
 from app.core.storage import BlobStorage
 from app.namespaces.models import Namespace
 from app.namespaces.service import NamespaceService
@@ -96,7 +94,11 @@ class BlobService:
             ns_limits.allowed_extensions is not None
             and extension not in ns_limits.allowed_extensions
         ):
-            await emit_blob_metric("UploadRejectedFormat", namespace=ns_limits.slug)
+            logger.warning(
+                "Upload rejected: unsupported format namespace=%s",
+                ns_limits.slug,
+                extra={"event": "upload_rejected_format", "namespace": ns_limits.slug},
+            )
             raise UnsupportedMediaTypeError()
 
         if size is not None:
@@ -106,16 +108,28 @@ class BlobService:
                 else settings.max_upload_bytes
             )
             if size > max_file_bytes:
-                await emit_blob_metric("UploadRejectedTooLarge", namespace=ns_limits.slug)
+                logger.warning(
+                    "Upload rejected: file too large namespace=%s",
+                    ns_limits.slug,
+                    extra={"event": "upload_rejected_too_large", "namespace": ns_limits.slug},
+                )
                 raise PayloadTooLargeError()
             if ns_limits.max_storage_bytes is not None:
                 used = await self.repo.sum_stored_bytes(ns_limits.slug)
                 if used + size > ns_limits.max_storage_bytes:
-                    await emit_blob_metric("UploadRejectedQuota", namespace=ns_limits.slug)
+                    logger.warning(
+                        "Upload rejected: namespace quota exceeded namespace=%s",
+                        ns_limits.slug,
+                        extra={"event": "upload_rejected_quota", "namespace": ns_limits.slug},
+                    )
                     raise QuotaExceededError()
 
         if ttl_seconds is not None and ttl_seconds > settings.max_temporary_ttl_seconds:
-            await emit_blob_metric("TtlRejected", namespace=ns_limits.slug)
+            logger.warning(
+                "Upload rejected: TTL above maximum namespace=%s",
+                ns_limits.slug,
+                extra={"event": "ttl_rejected", "namespace": ns_limits.slug},
+            )
             raise ValidationFailedError("Temporary TTL exceeds the allowed maximum")
         if ttl_seconds is not None and ttl_seconds <= 0:
             raise ValidationFailedError("Temporary TTL must be greater than zero")
@@ -181,7 +195,6 @@ class BlobService:
         if blob is None or blob.status == BlobStatus.DELETED:
             raise NotFoundError()
         if not allow_expired and self._is_expired(blob):
-            await emit_blob_metric("ExpiredBlobRequested", namespace=namespace)
             raise GoneError()
         return blob
 
@@ -198,11 +211,6 @@ class BlobService:
             blob.key, expires, disposition=disposition, filename=blob.filename
         )
         await self.repo.add_event(blob.id, namespace, BlobEventAction.DOWNLOADED)
-        await emit_blob_metric(
-            "BlobDownloadUrlIssued",
-            namespace=namespace,
-            Visibility=Visibility(blob.visibility).value,
-        )
         return url, datetime.now(UTC) + timedelta(seconds=expires)
 
     async def list_events(self, namespace: str, blob_id: UUID) -> builtins_list[BlobEvent]:
@@ -260,12 +268,6 @@ class BlobService:
                             "to": Visibility(blob.visibility).value,
                         },
                     )
-                    await emit_blob_metric(
-                        "BlobVisibilityChanged",
-                        namespace=namespace,
-                        To=Visibility(blob.visibility).value,
-                    )
-                await emit_blob_metric("BlobUpdated", namespace=namespace)
                 return blob
 
         blob.updated_by_namespace = namespace
@@ -278,10 +280,6 @@ class BlobService:
                 BlobEventAction.VISIBILITY_CHANGED,
                 {"from": previous_visibility.value, "to": Visibility(blob.visibility).value},
             )
-            await emit_blob_metric(
-                "BlobVisibilityChanged", namespace=namespace, To=Visibility(blob.visibility).value
-            )
-        await emit_blob_metric("BlobUpdated", namespace=namespace)
         if previous_visibility == Visibility.PUBLIC and blob.visibility == Visibility.PRIVATE:
             await invalidate([blob.key])
         return blob
@@ -305,9 +303,6 @@ class BlobService:
             await self.repo.soft_delete(blob)
         if blob.visibility == Visibility.PUBLIC or blob.public_slug is not None:
             await invalidate([blob.key])
-        await emit_blob_metric("BlobDeleted", namespace=namespace, Mode=mode)
-        if blob.status == BlobStatus.STORED and blob.byte_size is not None:
-            await emit_blob_metric("BlobDeletedBytes", blob.byte_size, "Bytes", namespace=namespace)
 
     async def _read_limited(self, upload: UploadFile) -> bytes:
         cap = settings.max_upload_bytes + 1
@@ -321,12 +316,6 @@ class BlobService:
             total += len(chunk)
         return b"".join(chunks)
 
-    async def _emit_compression(self, namespace: str, original_size: int, size: int) -> None:
-        await emit_blob_metric("ImageCompressed", namespace=namespace)
-        await emit_blob_metric(
-            "CompressionBytesSaved", original_size - size, "Bytes", namespace=namespace
-        )
-
     async def upload_proxy(
         self,
         namespace: str,
@@ -338,7 +327,6 @@ class BlobService:
         ttl_seconds: int | None,
         temporary: bool = False,
     ) -> Blob:
-        started = time.perf_counter()
         name = self._sanitize_filename(filename or upload.filename)
         content_type = (upload.content_type or "application/octet-stream").lower()
         data = await self._read_limited(upload)
@@ -388,27 +376,6 @@ class BlobService:
         blob = await self._create_retrying_slug(blob)
         await self.repo.add_event(blob.id, namespace, BlobEventAction.CREATED)
         await self.repo.add_event(blob.id, namespace, BlobEventAction.UPLOADED)
-        await emit_blob_metric(
-            "BlobCreated",
-            namespace=namespace,
-            Visibility=visibility.value,
-            Temporary=str(blob.is_temporary).lower(),
-        )
-        await emit_blob_metric(
-            "BlobUploadedBytes",
-            len(data),
-            "Bytes",
-            namespace=namespace,
-            Temporary=str(blob.is_temporary).lower(),
-        )
-        if original_size is not None:
-            await self._emit_compression(namespace, original_size, len(data))
-        await emit_blob_metric(
-            "BlobProxyUploadLatency",
-            (time.perf_counter() - started) * 1000,
-            "Milliseconds",
-            namespace=namespace,
-        )
         return await self._enqueue_processing(blob)
 
     async def create_presign(
@@ -444,12 +411,6 @@ class BlobService:
         await self.repo.add_event(
             blob.id, namespace, BlobEventAction.CREATED, {"expected_byte_size": payload.byte_size}
         )
-        await emit_blob_metric(
-            "BlobCreated",
-            namespace=namespace,
-            Visibility=payload.visibility.value,
-            Temporary=str(blob.is_temporary).lower(),
-        )
         url = await self.storage.generate_presigned_put(
             blob.key, content_type, settings.s3_presign_expires_seconds
         )
@@ -463,7 +424,15 @@ class BlobService:
         try:
             head = await self.storage.head_object(blob.key)
         except NotFoundError as exc:
-            await emit_blob_metric("BlobCompleteFailed", namespace=namespace, Reason="not_found")
+            logger.warning(
+                "Blob completion failed: not_found namespace=%s",
+                namespace,
+                extra={
+                    "event": "blob_complete_failed",
+                    "namespace": namespace,
+                    "reason": "not_found",
+                },
+            )
             raise ConflictError("Uploaded object was not found") from exc
 
         limits = await self._effective_limits(namespace)
@@ -477,8 +446,14 @@ class BlobService:
             None,
         )
         if expected_size is not None and head.size != expected_size:
-            await emit_blob_metric(
-                "BlobCompleteFailed", namespace=namespace, Reason="size_mismatch"
+            logger.warning(
+                "Blob completion failed: size_mismatch namespace=%s",
+                namespace,
+                extra={
+                    "event": "blob_complete_failed",
+                    "namespace": namespace,
+                    "reason": "size_mismatch",
+                },
             )
             raise ConflictError("Uploaded object size does not match the presign request")
         try:
@@ -490,7 +465,15 @@ class BlobService:
                 ttl_seconds=None,
             )
         except (PayloadTooLargeError, QuotaExceededError) as exc:
-            await emit_blob_metric("BlobCompleteFailed", namespace=namespace, Reason="limit")
+            logger.warning(
+                "Blob completion failed: limit namespace=%s",
+                namespace,
+                extra={
+                    "event": "blob_complete_failed",
+                    "namespace": namespace,
+                    "reason": "limit",
+                },
+            )
             raise ConflictError("Uploaded object violates namespace limits") from exc
 
         data = await self.storage.get_object(blob.key)
@@ -527,14 +510,4 @@ class BlobService:
         if blob.visibility == Visibility.PUBLIC:
             await invalidate([previous_key, blob.key])
         await self.repo.add_event(blob.id, namespace, BlobEventAction.COMPLETED)
-        await emit_blob_metric("BlobCompleted", namespace=namespace)
-        await emit_blob_metric(
-            "BlobUploadedBytes",
-            byte_size,
-            "Bytes",
-            namespace=namespace,
-            Temporary=str(blob.is_temporary).lower(),
-        )
-        if original_size is not None:
-            await self._emit_compression(namespace, original_size, byte_size)
         return await self._enqueue_processing(blob)

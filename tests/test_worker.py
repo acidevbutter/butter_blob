@@ -1,3 +1,4 @@
+import logging
 from io import BytesIO
 from unittest.mock import AsyncMock
 from uuid import UUID, uuid4
@@ -51,7 +52,7 @@ async def test_image_job_creates_thumbnail_and_marks_blob_stored(
     assert derived[0]["key"] in blob_storage.objects
 
 
-async def test_virus_hit_quarantines_blob(db_session, blob_storage, monkeypatch):
+async def test_virus_hit_quarantines_blob(db_session, blob_storage, monkeypatch, caplog):
     blob = Blob(
         id=uuid4(),
         namespace="test-app",
@@ -68,23 +69,22 @@ async def test_virus_hit_quarantines_blob(db_session, blob_storage, monkeypatch)
     await db_session.commit()
     await blob_storage.put_object(blob.key, b"infected", "text/plain")
     monkeypatch.setattr(tasks, "_scan_for_virus", AsyncMock(return_value="Test.Signature"))
-    quarantined = AsyncMock()
-    monkeypatch.setattr(tasks, "emit_blob_metric", quarantined)
 
-    await tasks.process_job(
-        str(blob.id),
-        "test-app",
-        ["virus_scan"],
-        storage=blob_storage,
-        session_factory_override=lambda: db_session,
-    )
+    with caplog.at_level(logging.WARNING, logger="app.worker.tasks"):
+        await tasks.process_job(
+            str(blob.id),
+            "test-app",
+            ["virus_scan"],
+            storage=blob_storage,
+            session_factory_override=lambda: db_session,
+        )
 
     stored = await db_session.get(Blob, blob.id)
     assert stored is not None and stored.status == BlobStatus.DELETED
     assert blob.key not in blob_storage.objects
     events = await BlobRepository(db_session).list_events(blob.id)
     assert BlobEventAction.QUARANTINED in [event.action for event in events]
-    quarantined.assert_awaited_once_with("BlobQuarantined", namespace="test-app")
+    assert [r.__dict__.get("event") for r in caplog.records] == ["blob_quarantined"]
 
 
 async def test_upload_without_applicable_jobs_stays_stored(

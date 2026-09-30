@@ -4,7 +4,6 @@ from botocore.exceptions import ClientError, ReadTimeoutError
 from moto import mock_aws
 from urllib3.exceptions import HTTPError
 
-from app.core import storage as storage_module
 from app.core.exceptions import NotFoundError, StorageError
 from app.core.storage import BlobStorage, _make_public
 from app.settings.config import settings
@@ -114,7 +113,7 @@ async def test_bucket_exists_false_when_missing(aws_credentials):
         assert await store.bucket_exists() is False
 
 
-async def test_client_error_becomes_storage_error_and_emits_metric(aws_credentials, monkeypatch):
+async def test_client_error_becomes_storage_error(aws_credentials, monkeypatch):
     with mock_aws():
         store = BlobStorage(bucket=BUCKET)
 
@@ -123,17 +122,9 @@ async def test_client_error_becomes_storage_error_and_emits_metric(aws_credentia
 
         monkeypatch.setattr(store._client, "put_object", _raise)
 
-        calls: list[dict[str, object]] = []
-
-        async def _capture(name, value=1, unit="Count", *, namespace=None, **dims):
-            calls.append({"name": name, "dims": dims})
-
-        monkeypatch.setattr(storage_module, "emit_blob_metric", _capture)
-
         with pytest.raises(StorageError):
             await store.put_object("k", b"x", "text/plain")
 
-        assert calls == [{"name": "StorageErrorCount", "dims": {"Operation": "put_object"}}]
 
 
 @pytest.mark.parametrize(
@@ -143,7 +134,7 @@ async def test_client_error_becomes_storage_error_and_emits_metric(aws_credentia
         HTTPError("connection broken"),
     ],
 )
-async def test_download_read_error_becomes_storage_error_and_emits_metric(
+async def test_download_read_error_becomes_storage_error(
     aws_credentials, monkeypatch, read_error
 ):
     with mock_aws():
@@ -155,14 +146,6 @@ async def test_download_read_error_becomes_storage_error_and_emits_metric(
 
         monkeypatch.setattr(store._client, "get_object", lambda **kwargs: {"Body": BrokenBody()})
 
-        calls: list[dict[str, object]] = []
-
-        async def _capture(name, value=1, unit="Count", *, namespace=None, **dims):
-            calls.append({"name": name, "dims": dims})
-
-        monkeypatch.setattr(storage_module, "emit_blob_metric", _capture)
-
         with pytest.raises(StorageError):
             await store.get_object("k")
 
-        assert calls == [{"name": "StorageErrorCount", "dims": {"Operation": "get_object"}}]

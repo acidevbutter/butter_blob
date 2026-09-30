@@ -8,6 +8,7 @@ router.py / dependencies.py.
 
 from __future__ import annotations
 
+import logging
 from collections.abc import AsyncGenerator
 from contextvars import ContextVar
 from dataclasses import dataclass
@@ -19,11 +20,12 @@ from slugify import slugify
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import ForbiddenError, NotFoundError, ValidationFailedError
-from app.core.observability import emit_blob_metric
 from app.db.session import get_db_session
 from app.namespaces.repository import NamespaceRepository
 from app.namespaces.service import NamespaceService
 from app.settings.config import settings
+
+logger = logging.getLogger(__name__)
 
 DbSession = Annotated[AsyncSession, Depends(get_db_session)]
 _caller_api_key_id: ContextVar[UUID | None] = ContextVar("caller_api_key_id", default=None)
@@ -45,7 +47,10 @@ async def require_service_api_key(
     if authorization is not None and authorization.startswith("Bearer bbk_"):
         return
     if not settings.service_api_key or x_service_api_key != settings.service_api_key:
-        await emit_blob_metric("AuthFailure", Reason="service_api_key")
+        logger.warning(
+            "Auth failure: invalid service API key",
+            extra={"event": "auth_failure", "reason": "service_api_key"},
+        )
         raise NotFoundError()
 
 
@@ -54,7 +59,10 @@ async def require_admin_api_key(
 ) -> None:
     """Gate for /admin/v1/*. Same fail-closed-404 behaviour as the service key."""
     if not settings.admin_api_key or x_admin_api_key != settings.admin_api_key:
-        await emit_blob_metric("AuthFailure", Reason="admin_api_key")
+        logger.warning(
+            "Auth failure: invalid admin API key",
+            extra={"event": "auth_failure", "reason": "admin_api_key"},
+        )
         raise NotFoundError()
 
 

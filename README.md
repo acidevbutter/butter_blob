@@ -14,11 +14,10 @@ local dev).
   auto-expire; expired reads return `410` and a purge job reclaims the space.
 - **Audited** — every create / upload / update / download / delete is recorded in
   `blob_events`.
-- **Observed** — APM traces/metrics via OTLP/HTTP direto ao New Relic e eventos
-  operacionais em logfmt legível no stdout (`DevButter/ButterBlob`).
+- **Observed** — eventos operacionais em logs legíveis no stdout.
 
 > **Status:** foundation only (prompts 00–03). Settings, logging, middleware,
-> `core/` (decorators, exceptions, metrics, storage), the async DB layer and
+> `core/` (decorators, exceptions, storage), the async DB layer and
 > Alembic are in place and the service boots with `/health`, `/health/ready` and
 > `/docs`. The domain routes (`blobs`, `namespaces`, `admin`, `maintenance`,
 > `public`) are built by `docs/prompts/04-*.md` onward. See
@@ -40,7 +39,7 @@ sequences, blob lifecycle, and the data model.
 | Objects | S3 / MinIO via boto3 (behind `app/core/storage.py`) |
 | Schemas | Pydantic v2 |
 | Images | Pillow |
-| Telemetria | OpenTelemetry OTLP/HTTP + eventos logfmt no stdout |
+| Logs | `TerminalFormatter` legível no stdout |
 | Packaging | Poetry |
 | Lint / types | Ruff, mypy (strict) |
 | Tests | pytest + httpx `ASGITransport` + in-memory storage fake |
@@ -49,9 +48,9 @@ sequences, blob lifecycle, and the data model.
 
 ```
 app/
-├── main.py                 # FastAPI instance: logging, metrics, middleware, handlers, routers
+├── main.py                 # FastAPI instance: logging, middleware, handlers, routers
 ├── settings/               # config (pydantic-settings), logging_config, middleware
-├── core/                   # decorators, exceptions (registry), metrics, observability,
+├── core/                   # decorators, exceptions (registry),
 │                           #   storage (S3 wrapper), dependencies (DbSession, auth, CallerNamespace)
 ├── db/                     # Base, async session, all_models (Alembic import list)
 ├── blobs/                  # (prompt 05-08) blob + blob_event models, upload, manage, temporary

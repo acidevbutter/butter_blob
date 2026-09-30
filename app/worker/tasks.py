@@ -22,7 +22,6 @@ from PIL import Image
 from app.blobs.models import BlobEventAction, BlobStatus
 from app.blobs.repository import BlobRepository
 from app.core.decorators import log_call
-from app.core.observability import emit_blob_metric
 from app.core.storage import BlobStorage
 from app.db.session import session_factory
 from app.settings.config import settings
@@ -139,7 +138,11 @@ async def process_job(
                         BlobEventAction.QUARANTINED,
                         {"signature": signature},
                     )
-                    await emit_blob_metric("BlobQuarantined", namespace=namespace)
+                    logger.warning(
+                        "Blob quarantined by virus scan namespace=%s",
+                        namespace,
+                        extra={"event": "blob_quarantined", "namespace": namespace},
+                    )
                     break
             elif kind == "image_thumbnail":
                 data = await storage.get_object(blob.key)
@@ -155,9 +158,6 @@ async def process_job(
                 ] + derived
                 blob.blob_metadata = metadata
                 blob = await repo.update(blob)
-                await emit_blob_metric(
-                    "ThumbnailCreated", float(len(derived)), "Count", namespace=namespace
-                )
             elif kind == "video_transcode":
                 if settings.enable_video_transcode:
                     await _transcode_video()

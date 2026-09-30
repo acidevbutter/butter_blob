@@ -6,7 +6,6 @@ from app.blobs.repository import BlobRepository
 from app.blobs.schemas import PurgeResult
 from app.core.decorators import log_errors
 from app.core.exceptions import StorageError
-from app.core.observability import emit_blob_metric
 from app.core.storage import BlobStorage
 
 logger = logging.getLogger(__name__)
@@ -37,7 +36,4 @@ class MaintenanceService:
                     bytes_reclaimed += blob.byte_size
                 await self.repo.hard_delete(blob)
                 purged += 1
-        dimensions = {"namespace": namespace} if namespace else {}
-        await emit_blob_metric("TemporaryBlobsPurged", purged, "Count", **dimensions)
-        await emit_blob_metric("TemporaryPurgedBytes", bytes_reclaimed, "Bytes", **dimensions)
         return PurgeResult(scanned=scanned, purged=purged, bytes_reclaimed=bytes_reclaimed)

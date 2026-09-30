@@ -13,14 +13,15 @@ _S3_BUCKET_BY_ENVIRONMENT = {
 }
 
 
+SERVICE_NAME = "butter-blob"
+
+
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
     environment: Literal["development", "staging", "preprod", "production"] = "development"
     debug: bool = False
     log_level: str = "INFO"
-    otel_enabled: bool = False
-    otel_service_name: str = "butter-blob"
 
     database_host: str = "shared-postgres"
     database_port: int = 5432
