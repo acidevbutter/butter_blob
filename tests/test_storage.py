@@ -6,7 +6,8 @@ from urllib3.exceptions import HTTPError
 
 from app.core import storage as storage_module
 from app.core.exceptions import NotFoundError, StorageError
-from app.core.storage import BlobStorage
+from app.core.storage import BlobStorage, _make_public
+from app.settings.config import settings
 from tests.fakes import InMemoryBlobStorage
 
 BUCKET = "unit-test-bucket"
@@ -61,6 +62,50 @@ async def test_real_storage_round_trip_with_moto(aws_credentials):
         await store.delete_object("blobs/acme/1/report.pdf")
         with pytest.raises(NotFoundError):
             await store.head_object("blobs/acme/1/report.pdf")
+
+
+def test_make_public_rewrites_internal_host_to_public_one(monkeypatch):
+    monkeypatch.setattr(settings, "s3_endpoint_url", "http://minio:9000")
+    monkeypatch.setattr(settings, "s3_public_endpoint_url", "http://localhost:9010")
+
+    url = "http://minio:9000/devbutter-blob-local/blobs/acme/key.png?X-Amz-Signature=abc"
+
+    assert _make_public(url) == "http://localhost:9010/devbutter-blob-local/blobs/acme/key.png?X-Amz-Signature=abc"
+
+
+def test_make_public_is_a_noop_without_a_public_endpoint_configured(monkeypatch):
+    monkeypatch.setattr(settings, "s3_endpoint_url", "http://minio:9000")
+    monkeypatch.setattr(settings, "s3_public_endpoint_url", None)
+
+    url = "http://minio:9000/devbutter-blob-local/blobs/acme/key.png"
+    assert _make_public(url) == url
+
+
+def test_make_public_is_a_noop_for_a_real_s3_host(monkeypatch):
+    # Guards against ever rewriting a real AWS S3 URL: s3_endpoint_url is
+    # empty outside development (config.py rejects setting it otherwise), so
+    # the host-match check in _make_public never fires.
+    monkeypatch.setattr(settings, "s3_endpoint_url", None)
+    monkeypatch.setattr(settings, "s3_public_endpoint_url", "http://localhost:9010")
+
+    url = "https://unit-test-bucket.s3.amazonaws.com/blobs/acme/key.png"
+    assert _make_public(url) == url
+
+
+async def test_generate_presigned_get_rewrites_to_the_public_endpoint(aws_credentials, monkeypatch):
+    # No mock_aws()/real client here: generate_presigned_url is stubbed directly
+    # below, so BlobStorage never makes a network call worth sandboxing --
+    # moto's interception is unreliable once endpoint_url is overridden anyway.
+    monkeypatch.setattr(settings, "s3_endpoint_url", "http://minio:9000")
+    monkeypatch.setattr(settings, "s3_public_endpoint_url", "http://localhost:9010")
+    store = BlobStorage(bucket=BUCKET)
+    monkeypatch.setattr(
+        store._client, "generate_presigned_url", lambda *a, **k: "http://minio:9000/signed?x=1"
+    )
+
+    url = await store.generate_presigned_get("k", 300)
+
+    assert url == "http://localhost:9010/signed?x=1"
 
 
 async def test_bucket_exists_false_when_missing(aws_credentials):

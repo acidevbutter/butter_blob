@@ -12,6 +12,7 @@ from __future__ import annotations
 import asyncio
 import logging
 from typing import Annotated, Any, cast
+from urllib.parse import urlsplit, urlunsplit
 
 import boto3
 from botocore.client import Config
@@ -27,6 +28,22 @@ from app.settings.config import settings
 logger = logging.getLogger(__name__)
 
 _NOT_FOUND_CODES = {"404", "NoSuchKey", "NotFound"}
+
+
+def _make_public(url: str) -> str:
+    """Rewrite a presigned URL's host from settings.s3_endpoint_url (the internal
+    Docker Compose hostname boto3 signs against) to settings.s3_public_endpoint_url
+    (the browser-reachable equivalent). No-op unless both are configured and the
+    URL's host actually matches -- i.e. a no-op in every environment but local dev.
+    """
+    if not settings.s3_public_endpoint_url or not settings.s3_endpoint_url:
+        return url
+    internal = urlsplit(settings.s3_endpoint_url)
+    public = urlsplit(settings.s3_public_endpoint_url)
+    parts = urlsplit(url)
+    if parts.netloc != internal.netloc:
+        return url
+    return urlunsplit((public.scheme, public.netloc, parts.path, parts.query, parts.fragment))
 
 
 class HeadObject:
@@ -112,7 +129,7 @@ class BlobStorage:
             Params={"Bucket": self.bucket, "Key": key, "ContentType": content_type},
             ExpiresIn=expires,
         )
-        return url
+        return _make_public(url)
 
     async def generate_presigned_get(
         self,
@@ -135,7 +152,7 @@ class BlobStorage:
             Params=params,
             ExpiresIn=expires,
         )
-        return url
+        return _make_public(url)
 
     async def bucket_exists(self) -> bool:
         """Used by /health/ready. Returns False (never raises) so a storage

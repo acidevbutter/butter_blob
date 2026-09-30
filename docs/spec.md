@@ -543,7 +543,8 @@ Every metric here carries a `Namespace` dimension.
 | `allow_header_namespace` | `ALLOW_HEADER_NAMESPACE` | `true` | migration window for shared-key + namespace headers |
 | `aws_region` | `AWS_REGION` | `us-east-1` | |
 | `s3_bucket` | `S3_BUCKET` | `devbutter-blob-local` | |
-| `s3_endpoint_url` | `S3_ENDPOINT_URL` | `None` | `http://minio:9000` locally |
+| `s3_endpoint_url` | `S3_ENDPOINT_URL` | `None` | `http://minio:9000` locally; outside development it requires the explicit opt-in below. |
+| `allow_s3_endpoint_outside_development` | `ALLOW_S3_ENDPOINT_OUTSIDE_DEVELOPMENT` | `false` | Allows an explicit S3-compatible endpoint in preprod/production; intended for a temporary provider migration such as Cloudflare R2. |
 | `s3_force_path_style` | `S3_FORCE_PATH_STYLE` | `true` | required for MinIO; `false` on AWS |
 | `s3_presign_expires_seconds` | `S3_PRESIGN_EXPIRES_SECONDS` | `900` | ceiling for presigned URL lifetimes |
 | `max_upload_bytes` | `MAX_UPLOAD_BYTES` | `52428800` | global per-file ceiling (50 MiB) |
