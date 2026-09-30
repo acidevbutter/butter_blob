@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- Adicionado `scripts/preprod_route_health.sh`, smoke test diário das rotas em
+  preprod restrito ao namespace `qa-smoke-daily`, com credenciais lidas de
+  `.env.preprod` (ignorado pelo git; modelo em `.env.preprod.example`). Cada
+  requisição é feita uma única vez, lendo status e corpo da mesma resposta, para
+  não deixar blobs órfãos no namespace a cada execução.
+
 - Probes de saúde não geram mais logs ou métricas de requisição. O terminal
   passa a exibir uma linha curta por evento, enquanto o handler OTLP envia os
   atributos estruturados diretamente ao New Relic quando há endpoint configurado.
