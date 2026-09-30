@@ -96,28 +96,6 @@ def test_terminal_formatter_renders_readable_structured_fields():
     assert "GET /health | → 200 | 1.2ms | request_id=abc-123" in line
 
 
-def test_terminal_formatter_keeps_metric_fields_readable():
-    record = logging.LogRecord(
-        name="metrics",
-        level=logging.INFO,
-        pathname=__file__,
-        lineno=1,
-        msg="metric emitted",
-        args=(),
-        exc_info=None,
-    )
-
-    record.event = "metric_emitted"
-    record.log_type = "metric"
-    record.Route = "/health"
-    ServiceContextFilter("butter-blob", "development").filter(record)
-
-    formatted = TerminalFormatter().format(record)
-
-    assert "[butter-blob/development]" in formatted
-    assert "metric_emitted: metric emitted" in formatted
-
-
 def test_uvicorn_access_logger_is_quiet_and_does_not_propagate():
     from app.settings.logging_config import setup_logging
 

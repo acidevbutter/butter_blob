@@ -3,23 +3,6 @@
 import logging
 from datetime import UTC, datetime
 
-_RESERVED = frozenset(vars(logging.makeLogRecord({}))) | {"message", "asctime"}
-_ALIASES = {
-    "method": "http.request.method",
-    "route": "url.path",
-    "status_code": "http.response.status_code",
-    "request_id": "request.id",
-}
-_CONSUMED = {
-    "deployment_environment",
-    "environment",
-    "event",
-    "log_type",
-    "service",
-    "service_name",
-    *_ALIASES,
-}
-
 
 class ServiceContextFilter(logging.Filter):
     def __init__(self, service_name: str, environment: str) -> None:
@@ -34,14 +17,10 @@ class ServiceContextFilter(logging.Filter):
 
 
 class TerminalFormatter(logging.Formatter):
-    """Render a short terminal line; OTLP keeps the full structured record."""
+    """Render a short, human-readable terminal line."""
 
     def format(self, record: logging.LogRecord) -> str:
-        event = getattr(
-            record,
-            "event",
-            "metric_emitted" if record.name == "metrics" else "log",
-        )
+        event = getattr(record, "event", "log")
         timestamp = datetime.fromtimestamp(record.created, tz=UTC).strftime("%Y-%m-%d %H:%M:%S")
         service = getattr(record, "service_name", "unknown")
         environment = getattr(record, "deployment_environment", "unknown")

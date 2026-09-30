@@ -1,3 +1,4 @@
+import logging
 from io import BytesIO
 from uuid import UUID
 
@@ -48,7 +49,7 @@ async def test_presign_then_complete_stores_uploaded_object(
     assert completed.json()["byte_size"] == 5
 
 
-async def test_upload_rejects_disallowed_format(client, admin_headers, internal_headers):
+async def test_upload_rejects_disallowed_format(client, admin_headers, internal_headers, caplog):
     created = await client.post(
         "/admin/v1/namespaces",
         headers=admin_headers,
@@ -56,12 +57,15 @@ async def test_upload_rejects_disallowed_format(client, admin_headers, internal_
     )
     assert created.status_code == 201
 
-    response = await client.post(
-        "/internal/v1/blobs",
-        headers=internal_headers,
-        files={"file": ("report.txt", b"blocked", "text/plain")},
-    )
+    with caplog.at_level(logging.WARNING, logger="app.blobs.service"):
+        response = await client.post(
+            "/internal/v1/blobs",
+            headers=internal_headers,
+            files={"file": ("report.txt", b"blocked", "text/plain")},
+        )
     assert response.status_code == 415
+    rejected = [r for r in caplog.records if r.__dict__.get("event") == "upload_rejected_format"]
+    assert [r.__dict__["namespace"] for r in rejected] == [internal_headers["X-Blob-Namespace"]]
 
 
 @pytest.mark.parametrize(

@@ -22,7 +22,6 @@ from urllib3.exceptions import HTTPError
 
 from app.core.decorators import log_errors
 from app.core.exceptions import NotFoundError, StorageError
-from app.core.observability import emit_blob_metric
 from app.settings.config import settings
 
 logger = logging.getLogger(__name__)
@@ -79,10 +78,8 @@ class BlobStorage:
             code = str(exc.response.get("Error", {}).get("Code", ""))
             if operation == "head_object" and code in _NOT_FOUND_CODES:
                 raise NotFoundError(f"Object {kwargs.get('Key', args)} not found") from exc
-            await emit_blob_metric("StorageErrorCount", Operation=operation)
             raise StorageError(f"S3 {operation} failed: {code or exc}") from exc
         except (BotoCoreError, HTTPError) as exc:
-            await emit_blob_metric("StorageErrorCount", Operation=operation)
             raise StorageError(f"S3 {operation} failed: {exc}") from exc
 
     async def put_object(self, key: str, data: bytes, content_type: str) -> None:

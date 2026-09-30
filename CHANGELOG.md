@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+- Removidos OpenTelemetry e todas as métricas (`core/metrics.py`,
+  `core/telemetry.py`, `core/observability.py`, linhas `metric emitted`), as
+  dependências `opentelemetry-*` e as variáveis `OTEL_*` / `otel_*`. O stdout
+  fica apenas com logs legíveis do `TerminalFormatter`, sem o erro
+  `Failed to export metrics batch code: 401` do exportador OTLP. Rejeições de
+  upload, falhas de autenticação, falhas de `complete`, readiness e
+  quarentena agora geram um `logger.warning` com `event` e `namespace`/`reason`.
+
 - Adicionado `scripts/preprod_route_health.sh`, smoke test diário das rotas em
   preprod restrito ao namespace `qa-smoke-daily`, com credenciais lidas de
   `.env.preprod` (ignorado pelo git; modelo em `.env.preprod.example`). Cada

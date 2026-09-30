@@ -26,16 +26,8 @@ async def _publish(client, headers) -> dict[str, object]:
     return cast(dict[str, object], response.json())
 
 
-async def test_public_blob_redirects_without_auth_and_emits_metric(
-    client, internal_headers, monkeypatch
-):
+async def test_public_blob_redirects_without_auth(client, internal_headers):
     blob = await _publish(client, internal_headers)
-    emitted: list[tuple[str, str, dict[str, str]]] = []
-
-    async def fake_emit(name: str, *, namespace: str, **dimensions: str) -> None:
-        emitted.append((name, namespace, dimensions))
-
-    monkeypatch.setattr("app.public.service.emit_blob_metric", fake_emit)
     response = await client.get(
         f"/v1/public/{internal_headers['X-Blob-Namespace']}/{blob['public_slug']}",
         follow_redirects=False,
@@ -46,48 +38,28 @@ async def test_public_blob_redirects_without_auth_and_emits_metric(
     assert "method=GET" in response.headers["location"]
     assert "expires=300" in response.headers["location"]
     assert response.headers["cache-control"] == "public, max-age=86400"
-    assert emitted == [("PublicBlobServed", internal_headers["X-Blob-Namespace"], {})]
 
 
-async def test_private_and_unknown_public_blobs_are_not_found(
-    client, internal_headers, monkeypatch
-):
+async def test_private_and_unknown_public_blobs_are_not_found(client, internal_headers):
     private_blob = await _upload(client, internal_headers)
-    emitted: list[tuple[str, str, dict[str, str]]] = []
-
-    async def fake_emit(name: str, *, namespace: str, **dimensions: str) -> None:
-        emitted.append((name, namespace, dimensions))
-
-    monkeypatch.setattr("app.public.service.emit_blob_metric", fake_emit)
     namespace = internal_headers["X-Blob-Namespace"]
     for slug in (str(private_blob["id"]), "unknown"):
         response = await client.get(f"/v1/public/{namespace}/{slug}", follow_redirects=False)
         assert response.status_code == 404
-    assert emitted == [
-        ("PublicBlobMiss", namespace, {"Reason": "not_found"}),
-        ("PublicBlobMiss", namespace, {"Reason": "not_found"}),
-    ]
 
 
-async def test_expired_public_blob_is_gone(client, db_session, internal_headers, monkeypatch):
+async def test_expired_public_blob_is_gone(client, db_session, internal_headers):
     blob = await _publish(client, internal_headers)
     stored = await db_session.get(Blob, UUID(str(blob["id"])))
     assert stored is not None
     stored.expires_at = datetime.now(UTC) - timedelta(seconds=1)
     await db_session.commit()
-    emitted: list[tuple[str, str, dict[str, str]]] = []
-
-    async def fake_emit(name: str, *, namespace: str, **dimensions: str) -> None:
-        emitted.append((name, namespace, dimensions))
-
-    monkeypatch.setattr("app.public.service.emit_blob_metric", fake_emit)
     namespace = internal_headers["X-Blob-Namespace"]
     response = await client.get(
         f"/v1/public/{namespace}/{blob['public_slug']}", follow_redirects=False
     )
 
     assert response.status_code == 410
-    assert emitted == [("PublicBlobMiss", namespace, {"Reason": "expired"})]
 
 
 async def test_public_metadata_has_only_public_fields(client, internal_headers):

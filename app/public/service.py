@@ -6,7 +6,6 @@ from app.blobs.models import Blob
 from app.blobs.repository import BlobRepository
 from app.core.decorators import log_errors
 from app.core.exceptions import GoneError, NotFoundError
-from app.core.observability import emit_blob_metric
 from app.core.storage import BlobStorage
 from app.public.schemas import PublicMeta
 from app.settings.config import settings
@@ -30,10 +29,8 @@ class PublicService:
     async def resolve(self, namespace: str, public_slug: str) -> Blob:
         blob = await self.repo.get_public(namespace, public_slug)
         if blob is None:
-            await emit_blob_metric("PublicBlobMiss", namespace=namespace, Reason="not_found")
             raise NotFoundError()
         if self._is_expired(blob):
-            await emit_blob_metric("PublicBlobMiss", namespace=namespace, Reason="expired")
             raise GoneError()
         return blob
 
@@ -50,7 +47,6 @@ class PublicService:
                 disposition=disposition,
                 filename=blob.filename,
             )
-        await emit_blob_metric("PublicBlobServed", namespace=namespace)
         return url
 
     async def cache_control(self, namespace: str, public_slug: str) -> str:

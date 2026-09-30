@@ -8,21 +8,15 @@ from starlette.middleware.sessions import SessionMiddleware
 from starlette.requests import Request
 from starlette.responses import Response
 
-from app.core.metrics import SERVICE_NAME, emit_metrics, route_template, status_class
-from app.settings.config import settings
+from app.settings.config import SERVICE_NAME, settings
 
 logger = logging.getLogger("app.request")
 _PROBE_PATHS = frozenset({"/health", "/health/ready"})
 
 
 def _log_route(request: Request) -> str:
-    """Route template for the log event.
-
-    Unlike `route_template` (used for the low-cardinality metric `Route`
-    dimension, which must never carry a raw path), the log field falls back
-    to the actual request path for unmatched/404 requests -- useful for
-    debugging, and safe because log fields aren't metric dimensions.
-    """
+    """Route template for the log event, falling back to the actual request
+    path for unmatched/404 requests (useful for debugging)."""
     route = request.scope.get("route")
     path = getattr(route, "path", None)
     return path if isinstance(path, str) else request.url.path
@@ -30,8 +24,7 @@ def _log_route(request: Request) -> str:
 
 class RequestContextMiddleware(BaseHTTPMiddleware):
     """Assigns a request id, times the request, emits exactly one structured
-    JSON log event per request (success or failure), and emits request-level
-    metrics (RequestCount, Latency, 4xx/5xxCount)."""
+    log event per request (success or failure)."""
 
     async def dispatch(self, request: Request, call_next: RequestResponseEndpoint) -> Response:
         request_id = str(uuid.uuid4())
@@ -70,22 +63,6 @@ class RequestContextMiddleware(BaseHTTPMiddleware):
                 "route": _log_route(request),
                 "status_code": response.status_code,
                 "duration_ms": round(duration_ms, 1),
-            },
-        )
-        metrics = [
-            ("RequestCount", 1, "Count"),
-            ("Latency", duration_ms, "Milliseconds"),
-        ]
-        if response.status_code >= 500:
-            metrics.append(("5xxCount", 1, "Count"))
-        elif response.status_code >= 400:
-            metrics.append(("4xxCount", 1, "Count"))
-        await emit_metrics(
-            metrics,
-            {
-                "Method": request.method,
-                "Route": route_template(request),
-                "StatusClass": status_class(response.status_code),
             },
         )
         return response

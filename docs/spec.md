@@ -25,7 +25,7 @@ is the one service that stores and serves files (**blobs**) for all of them.
 - Temporary blobs: a `ttl_seconds` on upload makes the blob auto-expire; expired
   reads return `410`; a maintenance endpoint reclaims the storage.
 - Audit: every state change is recorded in `blob_events`.
-- OpenTelemetry APM direto ao New Relic, com eventos de negócio em logfmt no stdout.
+- Logs legíveis no stdout (sem OpenTelemetry nem métricas).
 
 **Phase 2 (prompts 12–16), previously "out of scope", now planned:**
 
@@ -68,13 +68,11 @@ flowchart LR
         SVC --> REPO["repository (async SQLAlchemy 2.0)"]
         SVC --> STORE["core/storage.py — boto3 S3"]
         SVC --> IMG["core/imaging.py — Pillow compress/resize"]
-        SVC --> OBS["core/telemetry.py (OTLP) + core/metrics.py (logfmt)"]
     end
 
     REPO --> PG[("shared-postgres / blob DB<br/>namespaces · blobs · blob_events")]
     STORE -->|"put · head · delete · presign"| S3[("S3 / MinIO :9000<br/>blobs/&lt;ns&gt;/&lt;id&gt;/… · tmp/&lt;ns&gt;/&lt;id&gt;/…")]
     BROWSER -.->|"302 → presigned GET"| S3
-    OBS -.->|"OTLP/HTTP direto + stdout → nrdot"| NR["New Relic<br/>butter-blob"]
 ```
 
 ### 3.2 Proxy upload — limit enforcement + image compression
@@ -103,7 +101,6 @@ sequenceDiagram
     A->>S: put_object(key = blobs|tmp/<ns>/<id>/<filename>)
     A->>D: insert blob status=stored · blob_events(created, uploaded)
     A-->>C: 201 BlobRead
-    A-)NR: BlobCreated · BlobUploadedBytes · [ImageCompressed · CompressionBytesSaved] · BlobProxyUploadLatency
 ```
 
 ### 3.3 Presigned upload + complete
@@ -130,7 +127,6 @@ sequenceDiagram
     end
     A->>A: status=stored · byte_size · original_byte_size · checksum_sha256 · blob_events(completed)
     A-->>C: BlobRead
-    A-)NR: BlobCompleted · BlobUploadedBytes · [ImageCompressed · CompressionBytesSaved]
 ```
 
 ### 3.4 Async post-processing
@@ -316,8 +312,7 @@ Checked in this order; first failure wins:
   compression/resize configured and the object is an image. This is a documented
   extra S3 round-trip.
 - The blob records `original_byte_size` (pre-transform) and `byte_size`
-  (post-transform); metrics `ImageCompressed` (Count) and `CompressionBytesSaved`
-  (Bytes = original − new).
+  (post-transform).
 
 ---
 
@@ -336,7 +331,7 @@ Checked in this order; first failure wins:
   (proxy) or done straight to S3 with a **presigned PUT**.
 - **`core/storage.py` `BlobStorage`** is the only module that imports boto3. Every
   call runs in a worker thread (`asyncio.to_thread`). `botocore` errors become
-  `StorageError` (+ `StorageErrorCount` metric with an `Operation` dimension);
+  `StorageError`;
   a missing object on `head_object` becomes `NotFoundError`.
 
 ---
@@ -396,7 +391,7 @@ use the standard 422 body.
 | Method | Path | Response |
 |---|---|---|
 | GET | `/health` | `200 {"status":"ok"}` |
-| GET | `/health/ready` | `200` if `SELECT 1` **and** S3 `head_bucket` succeed; else `503` + `HealthCheckFailure` metric (`Check=database\|storage`) |
+| GET | `/health/ready` | `200` if `SELECT 1` **and** S3 `head_bucket` succeed; else `503` (logged as a warning) |
 | GET | `/` | `307` → `/docs` (not in schema) |
 
 ### 8.2 Internal — `/internal/v1/*`
@@ -476,55 +471,15 @@ MinIO URLs. Terraform for the edge lives in `../infra/terraform/staging/cdn_blob
 
 ---
 
-## 9. Metrics catalogue — OpenTelemetry + structured stdout
+## 9. Observability
 
-O serviço `butter-blob` envia traces e métricas APM diretamente ao endpoint
-OTLP/HTTP configurado. O namespace de eventos de negócio `DevButter/ButterBlob`
-continua em `core/metrics.py`: cada emissão vira uma linha logfmt legível no
-stdout, que o `nrdot-collector` do host encaminha como log ao New Relic.
-`app.core.telemetry` opta pela convenção HTTP estável (`http`) antes da
-instrumentação; o histograma `http.server.request.duration` inclui método,
-rota (`http.route`) e status, que o New Relic usa para derivar as métricas APM.
-`configure_metrics()` permanece como extensão de ciclo de vida sem efeito. Cada
-emissão carrega dimensões grossas `{Environment, Service}` e as dimensões abaixo;
-falhas de telemetria nunca afetam uma requisição.
-
-### 9.1 Request-level (`RequestContextMiddleware`)
-| Metric | Unit | Dimensions |
-|---|---|---|
-| `RequestCount` | Count | `Method`, `Route` (template), `StatusClass` |
-| `Latency` | Milliseconds | same |
-| `4xxCount` / `5xxCount` | Count | same |
-
-### 9.2 File-level (service layer, via `emit_blob_metric`)
-Every metric here carries a `Namespace` dimension.
-
-| Metric | Unit | Trigger | Extra dims |
-|---|---|---|---|
-| `BlobCreated` | Count | blob row created (proxy or presign) | `Visibility`, `Temporary` |
-| `BlobUploadedBytes` | Bytes | proxy stored / `complete` confirmed | `Temporary` |
-| `BlobProxyUploadLatency` | Milliseconds | proxy stream-to-S3 duration | — |
-| `BlobCompleted` | Count | presigned upload confirmed | — |
-| `BlobCompleteFailed` | Count | `head_object` missing / size mismatch | `Reason` |
-| `BlobDownloadUrlIssued` | Count | `/download-url` | `Visibility` |
-| `PublicBlobServed` | Count | `/v1/public/...` 302 | — |
-| `PublicBlobMiss` | Count | public lookup 404/410 | `Reason` |
-| `BlobUpdated` | Count | PATCH applied | — |
-| `BlobVisibilityChanged` | Count | visibility flipped | `To` |
-| `BlobDeleted` | Count | delete | `Mode` (`soft`/`hard`) |
-| `BlobDeletedBytes` | Bytes | delete of a `stored` blob | — |
-| `UploadRejectedTooLarge` | Count | 413 | — |
-| `UploadRejectedFormat` | Count | 415 | — |
-| `UploadRejectedQuota` | Count | 507 | — |
-| `TtlRejected` | Count | 422 (ttl over cap) | — |
-| `ExpiredBlobRequested` | Count | read of an expired blob → 410 | — |
-| `ImageCompressed` | Count | imaging transform ran | — |
-| `CompressionBytesSaved` | Bytes | `original_byte_size − byte_size` | — |
-| `TemporaryBlobsPurged` | Count | `purge-expired` run | — |
-| `TemporaryPurgedBytes` | Bytes | `purge-expired` run | — |
-| `StorageErrorCount` | Count | botocore error → `StorageError` | `Operation` (no `Namespace`) |
-| `AuthFailure` | Count | bad/missing service or admin key | `Reason` (no `Namespace`) |
-| `HealthCheckFailure` | Count | `/health/ready` failed | `Check` (no `Namespace`) |
+The service emits human-readable stdout logs only (`TerminalFormatter`): no
+OpenTelemetry, traces or metrics. `RequestContextMiddleware` writes one line per
+request (`request_completed` / `request_failed`). Rejections and failures that
+have no other trace are logged at WARNING with an `event` and non-sensitive
+fields: `upload_rejected_format`, `upload_rejected_too_large`,
+`upload_rejected_quota`, `ttl_rejected`, `blob_complete_failed` (`reason`),
+`auth_failure` (`reason`), `blob_quarantined`.
 
 ---
 
@@ -555,8 +510,7 @@ Every metric here carries a `Namespace` dimension.
 | `cloudfront_distribution_id` | `CLOUDFRONT_DISTRIBUTION_ID` | `""` | distribution to `create_invalidation` against on delete / visibility→private / replace; empty ⇒ `cdn.invalidate` is a no-op |
 
 `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` are read by boto3 directly (dev:
-`minioadmin` / `minioadmin`; AWS: the ECS task role). `core/metrics.py` has no
-env-configurable settings — namespace and service name are hardcoded constants.
+`minioadmin` / `minioadmin`; AWS: the ECS task role). The service name is a hardcoded constant (`SERVICE_NAME` in `config.py`).
 
 ---
 
