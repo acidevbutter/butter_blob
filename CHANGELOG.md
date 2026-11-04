@@ -9,7 +9,10 @@
   `.dockerignore` agora fica ao lado do Dockerfile (antes estava na raiz e o
   BuildKit o ignorava, levando `.env` para o contexto de build). O worker
   Dokploy não roda migrações (`RUN_MIGRATIONS=false`). Alias
-  `<DEPLOY_ENV>-blob-api` (prod, preprod e staging no mesmo Dokploy).
+  `<DEPLOY_ENV>-blob-api` (prod, preprod e staging no mesmo Dokploy). Nos
+  ambientes Dokploy o storage é o Cloudflare R2 (só configuração, sem mudança
+  de código): `.env.example` e o compose documentam endpoint, `AWS_REGION=auto`,
+  bucket por ambiente e checksums `when_required`.
 
 - Removidos OpenTelemetry e todas as métricas (`core/metrics.py`,
   `core/telemetry.py`, `core/observability.py`, linhas `metric emitted`), as
