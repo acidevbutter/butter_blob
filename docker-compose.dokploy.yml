@@ -32,6 +32,11 @@ x-logging: &default-logging
     max-size: "10m"
     max-file: "5"
 
+# ENVIRONMENT (staging|preprod|production) is the application mode and is
+# required: left unset the app defaults to `development` and skips every
+# secret validation. It is NOT DEPLOY_ENV (prod|preprod|staging), which only
+# prefixes the network aliases.
+
 services:
   blob-api:
     build:
@@ -41,6 +46,8 @@ services:
     env_file:
       - path: .env
         required: false
+    environment:
+      ENVIRONMENT: ${ENVIRONMENT:?set ENVIRONMENT to staging, preprod or production}
     expose:
       - "8000"
     networks:
@@ -59,6 +66,7 @@ services:
       - path: .env
         required: false
     environment:
+      ENVIRONMENT: ${ENVIRONMENT:?set ENVIRONMENT to staging, preprod or production}
       RUN_MIGRATIONS: "false"
     depends_on:
       blob-api:
