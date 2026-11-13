@@ -170,7 +170,7 @@ async def process_job(
         await repo.add_event(blob.id, namespace, BlobEventAction.PROCESSED)
 
 
-@celery_app.task(  # type: ignore[untyped-decorator]  # celery ships no type information
+@celery_app.task(
     bind=True,
     name=TASK_NAME,
     autoretry_for=(Exception,),

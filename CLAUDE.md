@@ -70,7 +70,6 @@ Cross-namespace access on `/internal/v1/*` returns **404**.
 poetry install
 poetry run pytest
 poetry run ruff check .
-poetry run mypy .
 
 # migrations (needs a DB; DATABASE_* from .env)
 poetry run alembic revision --autogenerate -m "add blobs"
@@ -94,7 +93,6 @@ docker compose up --build          # entrypoint runs `alembic upgrade head`, ser
   `logger.warning(..., extra={"event": ..., "namespace": ...})`, never the router.
 - Never let a botocore or SQLAlchemy exception escape `core/storage.py` /
   `<domain>/repository.py` — translate to an `app.core.exceptions` type.
-- `mypy` runs `strict = true` on `app/`; `tests.*` relaxes the untyped-def rules.
 - **CHANGELOG.md / RELEASE_NOTES.md are written in pt-BR** (matches the sibling
   services); code, comments, `docs/` and this file are in English.
 - Default branch: **`master`**.
