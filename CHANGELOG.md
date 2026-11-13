@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+- Deploy migrado da Coolify para o Dokploy: os `Dockerfile.*.hostinger`
+  viraram um único `docker/Dockerfile.dokploy` com stages `api` e `worker`
+  (multi-stage, venv em `/opt/venv`, `tini`, healthcheck `/health` na API e
+  `celery inspect ping` no worker) e novo `docker-compose.dokploy.yml`. O
+  `.dockerignore` agora fica ao lado do Dockerfile (antes estava na raiz e o
+  BuildKit o ignorava, levando `.env` para o contexto de build). O worker
+  Dokploy não roda migrações (`RUN_MIGRATIONS=false`). Alias
+  `<DEPLOY_ENV>-blob-api` (prod, preprod e staging no mesmo Dokploy). Nos
+  ambientes Dokploy o storage é o Cloudflare R2 (só configuração, sem mudança
+  de código): `.env.example` e o compose documentam endpoint, `AWS_REGION=auto`,
+  bucket por ambiente e checksums `when_required`.
+
 - Removidos OpenTelemetry e todas as métricas (`core/metrics.py`,
   `core/telemetry.py`, `core/observability.py`, linhas `metric emitted`), as
   dependências `opentelemetry-*` e as variáveis `OTEL_*` / `otel_*`. O stdout
