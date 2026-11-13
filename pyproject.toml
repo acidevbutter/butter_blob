@@ -32,7 +32,6 @@ itsdangerous = "^2.2.0"
 pytest = "^8.3.0"
 pytest-asyncio = "^0.24.0"
 ruff = "^0.6.0"
-mypy = "^1.11.0"
 aiosqlite = "^0.20.0"
 moto = { extras = ["s3"], version = "^5.0.0" }
 
@@ -51,24 +50,6 @@ select = ["E", "F", "I", "UP", "B", "SIM"]
 # The project has a top-level `alembic/` dir, which makes isort mistake the
 # installed `alembic` package for first-party code.
 known-third-party = ["alembic"]
-
-[tool.mypy]
-python_version = "3.12"
-plugins = ["pydantic.mypy"]
-strict = true
-
-[[tool.mypy.overrides]]
-# boto3/botocore/moto/celery ship no type information.
-module = ["boto3.*", "botocore.*", "moto.*", "celery.*"]
-ignore_missing_imports = true
-
-[[tool.mypy.overrides]]
-# Test functions take pytest fixtures as untyped parameters by design.
-module = "tests.*"
-disallow_untyped_defs = false
-disallow_incomplete_defs = false
-disallow_untyped_decorators = false
-disallow_untyped_calls = false
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"

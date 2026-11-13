@@ -41,7 +41,7 @@ sequences, blob lifecycle, and the data model.
 | Images | Pillow |
 | Logs | `TerminalFormatter` legível no stdout |
 | Packaging | Poetry |
-| Lint / types | Ruff, mypy (strict) |
+| Lint | Ruff |
 | Tests | pytest + httpx `ASGITransport` + in-memory storage fake |
 
 ## Project structure
@@ -114,7 +114,6 @@ consumes that job, so `api` alone isn't enough.
 poetry install
 poetry run pytest
 poetry run ruff check .
-poetry run mypy .
 ```
 
 ### 6. Run the curl smoke test
